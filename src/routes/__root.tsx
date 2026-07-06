@@ -82,10 +82,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "RentEase — Verified student housing near your campus" },
       { name: "description", content: "Find and manage verified off-campus student housing. Search listings, message landlords, and handle tenancies in one place." },
-      { property: "og:title", content: "RentEase — Verified student housing" },
-      { property: "og:description", content: "Search verified off-campus rentals near your university." },
+      { property: "og:title", content: "RentEase — Verified student housing near your campus" },
+      { property: "og:description", content: "Find and manage verified off-campus student housing. Search listings, message landlords, and handle tenancies in one place." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "RentEase — Verified student housing near your campus" },
+      { name: "twitter:description", content: "Find and manage verified off-campus student housing. Search listings, message landlords, and handle tenancies in one place." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/fa7201cc-7779-40de-8504-011deaa5c5c1/id-preview-754b025b--0a6570f6-a8bb-4e09-b230-eedc926cd33e.lovable.app-1783355892767.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/fa7201cc-7779-40de-8504-011deaa5c5c1/id-preview-754b025b--0a6570f6-a8bb-4e09-b230-eedc926cd33e.lovable.app-1783355892767.png" },
     ],
     links: [
       {
