@@ -12,8 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as BrowseRouteImport } from './routes/browse'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LandlordIndexRouteImport } from './routes/landlord.index'
 import { Route as ListingIdRouteImport } from './routes/listing.$id'
+import { Route as LandlordIdRouteImport } from './routes/landlord.$id'
 
 const MessagesRoute = MessagesRouteImport.update({
   id: '/messages',
@@ -30,9 +33,19 @@ const BrowseRoute = BrowseRouteImport.update({
   path: '/browse',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LandlordIndexRoute = LandlordIndexRouteImport.update({
+  id: '/landlord/',
+  path: '/landlord/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ListingIdRoute = ListingIdRouteImport.update({
@@ -40,43 +53,85 @@ const ListingIdRoute = ListingIdRouteImport.update({
   path: '/listing/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LandlordIdRoute = LandlordIdRouteImport.update({
+  id: '/landlord/$id',
+  path: '/landlord/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/browse': typeof BrowseRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/landlord/$id': typeof LandlordIdRoute
   '/listing/$id': typeof ListingIdRoute
+  '/landlord/': typeof LandlordIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/browse': typeof BrowseRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/landlord/$id': typeof LandlordIdRoute
   '/listing/$id': typeof ListingIdRoute
+  '/landlord': typeof LandlordIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/browse': typeof BrowseRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/landlord/$id': typeof LandlordIdRoute
   '/listing/$id': typeof ListingIdRoute
+  '/landlord/': typeof LandlordIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/browse' | '/login' | '/messages' | '/listing/$id'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/browse'
+    | '/login'
+    | '/messages'
+    | '/landlord/$id'
+    | '/listing/$id'
+    | '/landlord/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/browse' | '/login' | '/messages' | '/listing/$id'
-  id: '__root__' | '/' | '/browse' | '/login' | '/messages' | '/listing/$id'
+  to:
+    | '/'
+    | '/admin'
+    | '/browse'
+    | '/login'
+    | '/messages'
+    | '/landlord/$id'
+    | '/listing/$id'
+    | '/landlord'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/browse'
+    | '/login'
+    | '/messages'
+    | '/landlord/$id'
+    | '/listing/$id'
+    | '/landlord/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   BrowseRoute: typeof BrowseRoute
   LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRoute
+  LandlordIdRoute: typeof LandlordIdRoute
   ListingIdRoute: typeof ListingIdRoute
+  LandlordIndexRoute: typeof LandlordIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -102,11 +157,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BrowseRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/landlord/': {
+      id: '/landlord/'
+      path: '/landlord'
+      fullPath: '/landlord/'
+      preLoaderRoute: typeof LandlordIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/listing/$id': {
@@ -116,15 +185,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ListingIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/landlord/$id': {
+      id: '/landlord/$id'
+      path: '/landlord/$id'
+      fullPath: '/landlord/$id'
+      preLoaderRoute: typeof LandlordIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   BrowseRoute: BrowseRoute,
   LoginRoute: LoginRoute,
   MessagesRoute: MessagesRoute,
+  LandlordIdRoute: LandlordIdRoute,
   ListingIdRoute: ListingIdRoute,
+  LandlordIndexRoute: LandlordIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
