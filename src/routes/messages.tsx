@@ -13,21 +13,32 @@ export const Route = createFileRoute("/messages")({
 });
 
 function MessagesPage() {
-  const [convos, setConvos] = useState<Conversation[]>(seed);
-  const [activeId, setActiveId] = useState(convos[0]?.id ?? "");
+  const convos = useConversations();
+  const [activeId, setActiveId] = useState("");
+  const effectiveActiveId = activeId || convos[0]?.id || "";
+  const active = convos.find((c) => c.id === effectiveActiveId);
+  const messages = useMessages(effectiveActiveId || undefined);
   const [draft, setDraft] = useState("");
-  const active = convos.find((c) => c.id === activeId);
 
-  const send = () => {
+  const send = async () => {
     if (!draft.trim() || !active) return;
-    const newMsg: Message = { id: crypto.randomUUID(), from: "me", text: draft, time: "now" };
-    setConvos((cs) => cs.map((c) => c.id === active.id ? { ...c, messages: [...c.messages, newMsg], lastPreview: draft } : c));
+    const text = draft;
     setDraft("");
-    setTimeout(() => {
-      const reply: Message = { id: crypto.randomUUID(), from: "them", text: "Thanks for your message — I'll get back to you shortly!", time: "now" };
-      setConvos((cs) => cs.map((c) => c.id === active.id ? { ...c, messages: [...c.messages, reply], lastPreview: reply.text } : c));
-    }, 1200);
+    const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    try {
+      await sendMessage(active.id, { from: "me", text, time: now }, messages.length);
+      setTimeout(() => {
+        sendMessage(
+          active.id,
+          { from: "them", text: "Thanks for your message — I'll get back to you shortly!", time: "now" },
+          messages.length + 1,
+        ).catch(() => {});
+      }, 1200);
+    } catch (err) {
+      console.error(err);
+    }
   };
+
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
