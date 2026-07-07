@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Plus, Upload, FileText, Receipt, Home } from "lucide-react";
-import { listings as seedListings, tenants, paymentLog, AMENITIES, type Listing } from "@/lib/mockData";
+import { AMENITIES, type Listing } from "@/lib/mockData";
+import { useListingsByLandlord, useTenants, usePayments, createListing } from "@/lib/firestoreData";
+
 import { StatusBadge } from "@/components/rentease/Badges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +23,9 @@ export const Route = createFileRoute("/landlord/")({
 
 function LandlordDashboard() {
   const myLandlordId = "l1";
-  const [items, setItems] = useState<Listing[]>(seedListings.filter((l) => l.landlordId === myLandlordId));
+  const items = useListingsByLandlord(myLandlordId);
+  const tenants = useTenants();
+  const paymentLog = usePayments();
   const [previewDoc, setPreviewDoc] = useState<null | { type: "agreement" | "receipt"; tenant: string }>(null);
 
   // Add listing form
@@ -36,7 +40,7 @@ function LandlordDashboard() {
     photo: "",
   });
 
-  const submitListing = (e: React.FormEvent) => {
+  const submitListing = async (e: React.FormEvent) => {
     e.preventDefault();
     const n: Listing = {
       id: crypto.randomUUID(),
@@ -59,10 +63,16 @@ function LandlordDashboard() {
       lng: -74.0,
       description: f.description,
     };
-    setItems((x) => [n, ...x]);
-    setF({ title: "", price: "", deposit: "", roomType: "Studio", availableFrom: "", amenities: [], description: "", photo: "" });
-    toast.success("Listing submitted", { description: "It's now Pending Review by our team." });
+    try {
+      await createListing(n);
+      setF({ title: "", price: "", deposit: "", roomType: "Studio", availableFrom: "", amenities: [], description: "", photo: "" });
+      toast.success("Listing submitted", { description: "It's now Pending Review by our team." });
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not save listing");
+    }
   };
+
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
