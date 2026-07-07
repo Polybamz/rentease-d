@@ -1,7 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, MapPin, Calendar, DollarSign, Check } from "lucide-react";
-import { listings, landlords, reviews } from "@/lib/mockData";
+import { listings } from "@/lib/mockData";
+import { useListing, useLandlord, useReviews } from "@/lib/firestoreData";
+
 import { StarRating, VerifiedBadge } from "@/components/rentease/Badges";
 import { StaticMap } from "@/components/rentease/StaticMap";
 import { Button } from "@/components/ui/button";
@@ -21,16 +23,19 @@ export const Route = createFileRoute("/listing/$id")({
 
 function ListingDetail() {
   const { id } = Route.useParams();
-  const listing = listings.find((l) => l.id === id);
+  const listing = useListing(id);
   const navigate = useNavigate();
   const [selected, setSelected] = useState(0);
   const [msgOpen, setMsgOpen] = useState(false);
   const [msg, setMsg] = useState("Hi, is this still available?");
+  const landlord = useLandlord(listing?.landlordId);
+  const allReviews = useReviews();
 
   if (!listing) return <div className="p-10">Not found</div>;
+  if (!landlord) return <div className="p-10">Loading…</div>;
 
-  const landlord = landlords.find((l) => l.id === listing.landlordId)!;
-  const listingReviews = reviews.filter((r) => r.listingId === listing.id);
+  const listingReviews = allReviews.filter((r) => r.listingId === listing.id);
+
 
   const send = () => {
     setMsgOpen(false);

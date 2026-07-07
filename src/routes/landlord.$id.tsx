@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { landlords, listings, reviews } from "@/lib/mockData";
+import { landlords } from "@/lib/mockData";
+import { useLandlord, useListingsByLandlord, useReviews } from "@/lib/firestoreData";
+
 import { StarRating, VerifiedBadge } from "@/components/rentease/Badges";
 import { ListingCard } from "@/components/rentease/ListingCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,10 +16,13 @@ export const Route = createFileRoute("/landlord/$id")({
 
 function LandlordProfile() {
   const { id } = Route.useParams();
-  const l = landlords.find((x) => x.id === id);
+  const l = useLandlord(id);
+  const theirListingsAll = useListingsByLandlord(id);
+  const allReviews = useReviews();
   if (!l) return <div className="p-10">Not found</div>;
-  const theirListings = listings.filter((x) => x.landlordId === l.id && x.status === "Live");
-  const theirReviews = reviews.filter((r) => r.landlordId === l.id);
+  const theirListings = theirListingsAll.filter((x) => x.status === "Live");
+  const theirReviews = allReviews.filter((r) => r.landlordId === l.id);
+
 
   const breakdown = [5, 4, 3, 2, 1].map((star) => ({
     star,
