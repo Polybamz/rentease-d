@@ -124,6 +124,13 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    import("@/lib/firebase").then(({ getFirebaseAnalytics }) => {
+      getFirebaseAnalytics().catch(() => {});
+    });
+  }, []);
+
+
   return (
     <QueryClientProvider client={queryClient}>
       <RoleProvider>
