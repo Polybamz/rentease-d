@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
-import { listings, AMENITIES } from "@/lib/mockData";
+import { AMENITIES } from "@/lib/mockData";
+import { useListings } from "@/lib/firestoreData";
+
 import { ListingCard } from "@/components/rentease/ListingCard";
 import { StaticMap } from "@/components/rentease/StaticMap";
 import { Button } from "@/components/ui/button";
@@ -95,6 +97,7 @@ function Filters(f: ReturnType<typeof useFilters>) {
 function BrowsePage() {
   const f = useFilters();
   const [highlight, setHighlight] = useState<string | undefined>();
+  const listings = useListings();
 
   const results = useMemo(() => {
     return listings
@@ -105,7 +108,8 @@ function BrowsePage() {
       .filter((l) => l.occupants >= f.occupants || l.roomType === "Studio")
       .filter((l) => f.amenities.every((a) => l.amenities.includes(a)))
       .filter((l) => !f.q || l.title.toLowerCase().includes(f.q.toLowerCase()) || l.address.toLowerCase().includes(f.q.toLowerCase()));
-  }, [f]);
+  }, [f, listings]);
+
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">

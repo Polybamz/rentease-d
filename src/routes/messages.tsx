@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Send } from "lucide-react";
-import { conversations as seed, landlords, listings, type Conversation, type Message } from "@/lib/mockData";
+import { landlords, listings } from "@/lib/mockData";
+import { useConversations, useMessages, sendMessage } from "@/lib/firestoreData";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+
 
 export const Route = createFileRoute("/messages")({
   component: MessagesPage,
@@ -11,21 +13,32 @@ export const Route = createFileRoute("/messages")({
 });
 
 function MessagesPage() {
-  const [convos, setConvos] = useState<Conversation[]>(seed);
-  const [activeId, setActiveId] = useState(convos[0]?.id ?? "");
+  const convos = useConversations();
+  const [activeId, setActiveId] = useState("");
+  const effectiveActiveId = activeId || convos[0]?.id || "";
+  const active = convos.find((c) => c.id === effectiveActiveId);
+  const messages = useMessages(effectiveActiveId || undefined);
   const [draft, setDraft] = useState("");
-  const active = convos.find((c) => c.id === activeId);
 
-  const send = () => {
+  const send = async () => {
     if (!draft.trim() || !active) return;
-    const newMsg: Message = { id: crypto.randomUUID(), from: "me", text: draft, time: "now" };
-    setConvos((cs) => cs.map((c) => c.id === active.id ? { ...c, messages: [...c.messages, newMsg], lastPreview: draft } : c));
+    const text = draft;
     setDraft("");
-    setTimeout(() => {
-      const reply: Message = { id: crypto.randomUUID(), from: "them", text: "Thanks for your message — I'll get back to you shortly!", time: "now" };
-      setConvos((cs) => cs.map((c) => c.id === active.id ? { ...c, messages: [...c.messages, reply], lastPreview: reply.text } : c));
-    }, 1200);
+    const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    try {
+      await sendMessage(active.id, { from: "me", text, time: now }, messages.length);
+      setTimeout(() => {
+        sendMessage(
+          active.id,
+          { from: "them", text: "Thanks for your message — I'll get back to you shortly!", time: "now" },
+          messages.length + 1,
+        ).catch(() => {});
+      }, 1200);
+    } catch (err) {
+      console.error(err);
+    }
   };
+
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
@@ -39,7 +52,7 @@ function MessagesPage() {
               <button
                 key={c.id}
                 onClick={() => setActiveId(c.id)}
-                className={`flex w-full items-start gap-3 border-b p-4 text-left transition hover:bg-muted ${activeId === c.id ? "bg-muted" : ""}`}
+                className={`flex w-full items-start gap-3 border-b p-4 text-left transition hover:bg-muted ${effectiveActiveId === c.id ? "bg-muted" : ""}`}
               >
                 <Avatar><AvatarImage src={l.avatar} /><AvatarFallback>{l.name[0]}</AvatarFallback></Avatar>
                 <div className="min-w-0 flex-1">
@@ -62,7 +75,7 @@ function MessagesPage() {
                 <div className="text-xs text-muted-foreground">{listings.find((l) => l.id === active.listingId)?.title}</div>
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto p-4">
-                {active.messages.map((m) => (
+                {messages.map((m) => (
                   <div key={m.id} className={`flex ${m.from === "me" ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${m.from === "me" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                       {m.text}
@@ -70,6 +83,7 @@ function MessagesPage() {
                     </div>
                   </div>
                 ))}
+
               </div>
               <form
                 onSubmit={(e) => { e.preventDefault(); send(); }}

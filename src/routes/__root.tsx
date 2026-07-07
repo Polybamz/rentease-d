@@ -128,7 +128,11 @@ function RootComponent() {
     import("@/lib/firebase").then(({ getFirebaseAnalytics }) => {
       getFirebaseAnalytics().catch(() => {});
     });
+    import("@/lib/firestoreData").then(({ seedFirestoreIfEmpty }) => {
+      seedFirestoreIfEmpty().catch(() => {});
+    });
   }, []);
+
 
 
   return (

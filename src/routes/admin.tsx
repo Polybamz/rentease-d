@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Check, X, Flag, Users, Home, AlertCircle } from "lucide-react";
-import { listings as seed, reportedListings, type Listing } from "@/lib/mockData";
+import { useListings, useReports, updateListingStatus } from "@/lib/firestoreData";
 import { StatusBadge } from "@/components/rentease/Badges";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,14 +13,21 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminPage() {
-  const [items, setItems] = useState<Listing[]>(seed);
+  const items = useListings();
+  const reportedListings = useReports();
 
-  const decide = (id: string, next: "Live" | "Rejected") => {
-    setItems((x) => x.map((l) => l.id === id ? { ...l, status: next } : l));
-    toast.success(next === "Live" ? "Listing approved" : "Listing rejected");
+  const decide = async (id: string, next: "Live" | "Rejected") => {
+    try {
+      await updateListingStatus(id, next);
+      toast.success(next === "Live" ? "Listing approved" : "Listing rejected");
+    } catch (err) {
+      console.error(err);
+      toast.error("Update failed");
+    }
   };
 
   const pending = items.filter((l) => l.status === "Pending Review");
+
   const stats = [
     { label: "Total listings", value: items.length, icon: Home },
     { label: "Pending reviews", value: pending.length, icon: AlertCircle },
