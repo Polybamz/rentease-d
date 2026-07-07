@@ -52,7 +52,7 @@ function MessagesPage() {
               <button
                 key={c.id}
                 onClick={() => setActiveId(c.id)}
-                className={`flex w-full items-start gap-3 border-b p-4 text-left transition hover:bg-muted ${activeId === c.id ? "bg-muted" : ""}`}
+                className={`flex w-full items-start gap-3 border-b p-4 text-left transition hover:bg-muted ${effectiveActiveId === c.id ? "bg-muted" : ""}`}
               >
                 <Avatar><AvatarImage src={l.avatar} /><AvatarFallback>{l.name[0]}</AvatarFallback></Avatar>
                 <div className="min-w-0 flex-1">
@@ -75,7 +75,7 @@ function MessagesPage() {
                 <div className="text-xs text-muted-foreground">{listings.find((l) => l.id === active.listingId)?.title}</div>
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto p-4">
-                {active.messages.map((m) => (
+                {messages.map((m) => (
                   <div key={m.id} className={`flex ${m.from === "me" ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${m.from === "me" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                       {m.text}
@@ -83,6 +83,7 @@ function MessagesPage() {
                     </div>
                   </div>
                 ))}
+
               </div>
               <form
                 onSubmit={(e) => { e.preventDefault(); send(); }}
