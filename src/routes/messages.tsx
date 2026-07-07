@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Send } from "lucide-react";
-import { conversations as seed, landlords, listings, type Conversation, type Message } from "@/lib/mockData";
+import { landlords, listings } from "@/lib/mockData";
+import { useConversations, useMessages, sendMessage } from "@/lib/firestoreData";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+
 
 export const Route = createFileRoute("/messages")({
   component: MessagesPage,
