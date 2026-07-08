@@ -2,6 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Home, MessageSquare, LayoutDashboard, Shield, LogOut, Menu } from "lucide-react";
 import { useState } from "react";
 import { useRole } from "@/lib/role";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,6 +15,7 @@ import {
 
 export function Nav() {
   const { role, setRole } = useRole();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
