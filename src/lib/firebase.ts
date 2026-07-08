@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getFirestore, type Firestore } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider, type Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string,
@@ -14,6 +15,8 @@ const firebaseConfig = {
 
 export const firebaseApp: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const db: Firestore = getFirestore(firebaseApp);
+export const auth: Auth = getAuth(firebaseApp);
+export const googleProvider = new GoogleAuthProvider();
 
 let analyticsInstance: Analytics | null = null;
 export async function getFirebaseAnalytics(): Promise<Analytics | null> {
