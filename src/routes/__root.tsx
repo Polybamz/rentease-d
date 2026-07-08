@@ -7,11 +7,13 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { RoleProvider } from "@/lib/role";
 import { AuthProvider } from "@/lib/auth";
 import { Nav } from "@/components/rentease/Nav";
 import { Toaster } from "@/components/ui/sonner";
+import { firebaseConfigError } from "@/lib/firebase";
+
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
