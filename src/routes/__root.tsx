@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { RoleProvider } from "@/lib/role";
+import { AuthProvider } from "@/lib/auth";
 import { Nav } from "@/components/rentease/Nav";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -137,15 +138,17 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <RoleProvider>
-        <div className="flex min-h-screen flex-col">
-          <Nav />
-          <main className="flex-1">
-            <Outlet />
-          </main>
-        </div>
-        <Toaster />
-      </RoleProvider>
+      <AuthProvider>
+        <RoleProvider>
+          <div className="flex min-h-screen flex-col">
+            <Nav />
+            <main className="flex-1">
+              <Outlet />
+            </main>
+          </div>
+          <Toaster />
+        </RoleProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
