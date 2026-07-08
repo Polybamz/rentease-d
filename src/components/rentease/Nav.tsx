@@ -2,6 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Home, MessageSquare, LayoutDashboard, Shield, LogOut, Menu } from "lucide-react";
 import { useState } from "react";
 import { useRole } from "@/lib/role";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,6 +15,7 @@ import {
 
 export function Nav() {
   const { role, setRole } = useRole();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
@@ -56,14 +58,18 @@ export function Nav() {
         </nav>
 
         <div className="flex items-center gap-2">
-          {role ? (
+          {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="capitalize">
-                  {role}
+                  {role ?? "Account"}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="truncate">
+                  {user.email ?? user.phoneNumber ?? "Signed in"}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
                 <DropdownMenuLabel>Switch role</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => { setRole("student"); navigate({ to: "/browse" }); }}>
                   Student
@@ -75,7 +81,7 @@ export function Nav() {
                   Admin
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => { setRole(null); navigate({ to: "/" }); }}>
+                <DropdownMenuItem onClick={async () => { await signOut(); setRole(null); navigate({ to: "/" }); }}>
                   <LogOut className="mr-2 h-4 w-4" /> Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>
