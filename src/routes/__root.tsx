@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { RoleProvider } from "@/lib/role";
 import { AuthProvider } from "@/lib/auth";
 import { Nav } from "@/components/rentease/Nav";
