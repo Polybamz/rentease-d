@@ -138,6 +138,10 @@ function RootComponent() {
 
 
 
+  if (firebaseConfigError) {
+    return <FirebaseConfigWarning message={firebaseConfigError} />;
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -154,3 +158,23 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+
+function FirebaseConfigWarning({ message }: { message: string }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-lg rounded-2xl border border-destructive/30 bg-card p-6 shadow-sm">
+        <h1 className="text-lg font-semibold text-foreground">Firebase is not configured</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+        <ol className="mt-4 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+          <li>Open <span className="font-mono">.env</span> at the project root.</li>
+          <li>
+            Set <span className="font-mono">VITE_FIREBASE_API_KEY</span> to your Firebase Web API key
+            (Firebase Console → Project settings → Your apps → Web app → <span className="font-mono">apiKey</span>).
+          </li>
+          <li>Restart the dev server so Vite picks up the new value.</li>
+        </ol>
+      </div>
+    </div>
+  );
+}
+
