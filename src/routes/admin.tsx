@@ -1,20 +1,40 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { Check, X, Flag, Users, Home, AlertCircle } from "lucide-react";
 import { useListings, useReports, updateListingStatus } from "@/lib/firestoreData";
 import { StatusBadge } from "@/components/rentease/Badges";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth";
+import { useRole } from "@/lib/role";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
-  head: () => ({ meta: [{ title: "Admin — RentEase" }] }),
+  head: () => ({ meta: [{ title: "Admin — RentEase" }, { name: "robots", content: "noindex" }] }),
 });
 
 function AdminPage() {
+  const { user, loading: authLoading } = useAuth();
+  const { role, loading: roleLoading } = useRole();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (authLoading || roleLoading) return;
+    if (!user) navigate({ to: "/login" });
+    else if (role !== "admin") navigate({ to: "/" });
+  }, [user, role, authLoading, roleLoading, navigate]);
+
   const items = useListings();
   const reportedListings = useReports();
+
+  if (authLoading || roleLoading || !user || role !== "admin") {
+    return (
+      <div className="mx-auto max-w-md px-4 py-16 text-center text-muted-foreground">
+        Checking access…
+      </div>
+    );
+  }
 
   const decide = async (id: string, next: "Live" | "Rejected") => {
     try {
