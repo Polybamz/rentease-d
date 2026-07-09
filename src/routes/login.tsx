@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { GraduationCap, Home, Shield, Mail, Phone as PhoneIcon } from "lucide-react";
+import { GraduationCap, Home, Mail, Phone as PhoneIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   RecaptchaVerifier,
@@ -8,7 +8,7 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
-import { useRole } from "@/lib/role";
+import { useRole, type SelectableRole } from "@/lib/role";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,35 +22,46 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const { user, loading, signInEmail, signUpEmail, signInGoogle } = useAuth();
-  const { setRole } = useRole();
+  const { role, loading: roleLoading, setRole } = useRole();
   const navigate = useNavigate();
 
-  if (loading) {
+  // Once signed in with a role already assigned, send them straight to their dashboard.
+  useEffect(() => {
+    if (!user || roleLoading) return;
+    if (role === "admin") navigate({ to: "/admin" });
+    else if (role === "student") navigate({ to: "/browse" });
+    else if (role === "landlord") navigate({ to: "/landlord" });
+  }, [user, role, roleLoading, navigate]);
+
+  if (loading || (user && roleLoading)) {
     return <div className="mx-auto max-w-md px-4 py-16 text-center text-muted-foreground">Loading…</div>;
   }
 
-  if (user) {
-    const pick = (r: "student" | "landlord" | "admin", to: string) => {
-      setRole(r);
-      navigate({ to });
+  if (user && !role) {
+    const pick = async (r: SelectableRole, to: string) => {
+      try {
+        await setRole(r);
+        navigate({ to });
+      } catch (e: any) {
+        toast.error(e?.message ?? "Could not save role");
+      }
     };
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">
         <div className="text-center">
-          <h1 className="text-3xl font-semibold md:text-4xl">Continue as…</h1>
+          <h1 className="text-3xl font-semibold md:text-4xl">Choose your account type</h1>
           <p className="mt-2 text-muted-foreground">
-            Signed in as <span className="font-medium">{user.email ?? user.phoneNumber}</span>. Pick a role to continue.
+            Signed in as <span className="font-medium">{user.email ?? user.phoneNumber}</span>. This can't be changed to admin later.
           </p>
         </div>
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
+        <div className="mt-10 grid gap-4 md:grid-cols-2">
           {[
-            { r: "student", to: "/browse", icon: GraduationCap, title: "Student", body: "Search verified listings, message landlords, and manage your rental." },
-            { r: "landlord", to: "/landlord", icon: Home, title: "Landlord", body: "Post listings, manage tenants, and track monthly payments." },
-            { r: "admin", to: "/admin", icon: Shield, title: "Admin", body: "Approve listings, review reports, and monitor platform activity." },
+            { r: "student" as const, to: "/browse", icon: GraduationCap, title: "Student", body: "Search verified listings, message landlords, and manage your rental." },
+            { r: "landlord" as const, to: "/landlord", icon: Home, title: "Landlord", body: "Post listings, manage tenants, and track monthly payments." },
           ].map((c) => (
             <button
               key={c.r}
-              onClick={() => pick(c.r as any, c.to)}
+              onClick={() => pick(c.r, c.to)}
               className="group rounded-2xl border bg-card p-6 text-left shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-primary hover:shadow-[var(--shadow-elevated)]"
             >
               <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">
@@ -63,6 +74,10 @@ function LoginPage() {
         </div>
       </div>
     );
+  }
+
+  if (user) {
+    return <div className="mx-auto max-w-md px-4 py-16 text-center text-muted-foreground">Redirecting…</div>;
   }
 
   return (
