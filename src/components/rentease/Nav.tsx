@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 
 export function Nav() {
   const { role, setRole } = useRole();
@@ -33,6 +34,15 @@ export function Nav() {
         : role === "admin"
           ? [{ to: "/admin", label: "Admin", icon: Shield }]
           : [];
+
+  const switchTo = async (r: "student" | "landlord") => {
+    try {
+      await setRole(r);
+      navigate({ to: r === "student" ? "/browse" : "/landlord" });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not switch role");
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
@@ -70,18 +80,23 @@ export function Nav() {
                   {user.email ?? user.phoneNumber ?? "Signed in"}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel>Switch role</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => { setRole("student"); navigate({ to: "/browse" }); }}>
-                  Student
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setRole("landlord"); navigate({ to: "/landlord" }); }}>
-                  Landlord
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setRole("admin"); navigate({ to: "/admin" }); }}>
-                  Admin
-                </DropdownMenuItem>
+                {role === "admin" ? (
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    Admin account
+                  </DropdownMenuLabel>
+                ) : (
+                  <>
+                    <DropdownMenuLabel>Switch role</DropdownMenuLabel>
+                    <DropdownMenuItem disabled={role === "student"} onClick={() => switchTo("student")}>
+                      Student
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled={role === "landlord"} onClick={() => switchTo("landlord")}>
+                      Landlord
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={async () => { await signOut(); setRole(null); navigate({ to: "/" }); }}>
+                <DropdownMenuItem onClick={async () => { await signOut(); navigate({ to: "/" }); }}>
                   <LogOut className="mr-2 h-4 w-4" /> Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>
