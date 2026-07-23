@@ -44,14 +44,23 @@ export type Review = {
 
 export type Message = {
   id: string;
-  from: "me" | "them";
+  /** uid of the sender for real conversations; "me"/"them" for seed/demo data only. */
+  from: string;
   text: string;
-  time: string;
+  /** Client-side send time, used for ordering and display of real messages. */
+  createdAtMs?: number;
+  /** Legacy display string used only by seed/demo messages. */
+  time?: string;
 };
 
 export type Conversation = {
   id: string;
+  /** uid of the landlord participant. */
   landlordId: string;
+  /** uid of the student participant (real conversations only). */
+  studentId?: string;
+  /** [studentId, landlordId] — used to query "my conversations". */
+  participants?: string[];
   listingId: string;
   lastPreview: string;
   unread: number;
@@ -150,7 +159,8 @@ export const listings: Listing[] = [
     address: "45 Elm Street",
     lat: 40.723,
     lng: -74.005,
-    description: "Furnished private bedroom in a friendly 3-person share. Common areas cleaned weekly.",
+    description:
+      "Furnished private bedroom in a friendly 3-person share. Common areas cleaned weekly.",
   },
   {
     id: "3",
@@ -302,62 +312,194 @@ export const listings: Listing[] = [
 ];
 
 export const reviews: Review[] = [
-  { id: "r1", listingId: "1", landlordId: "l1", author: "Maya P.", avatar: "https://i.pravatar.cc/60?img=5", rating: 5, date: "2025-06-12", text: "Landlord was responsive and the studio was exactly as pictured. Loved it." },
-  { id: "r2", listingId: "1", landlordId: "l1", author: "Chen W.", avatar: "https://i.pravatar.cc/60?img=8", rating: 4, date: "2025-03-02", text: "Great location, small kitchen but sufficient. Would recommend." },
-  { id: "r3", listingId: "3", landlordId: "l4", author: "Sofia R.", avatar: "https://i.pravatar.cc/60?img=9", rating: 5, date: "2025-05-20", text: "Beautiful apartment, security team is fantastic." },
-  { id: "r4", listingId: "2", landlordId: "l2", author: "Tomás L.", avatar: "https://i.pravatar.cc/60?img=14", rating: 4, date: "2025-04-08", text: "Friendly flatmates and a fair rent." },
-  { id: "r5", listingId: "5", landlordId: "l1", author: "Aisha K.", avatar: "https://i.pravatar.cc/60?img=25", rating: 5, date: "2025-07-01", text: "Perfect for roommates. Everything worked from day one." },
+  {
+    id: "r1",
+    listingId: "1",
+    landlordId: "l1",
+    author: "Maya P.",
+    avatar: "https://i.pravatar.cc/60?img=5",
+    rating: 5,
+    date: "2025-06-12",
+    text: "Landlord was responsive and the studio was exactly as pictured. Loved it.",
+  },
+  {
+    id: "r2",
+    listingId: "1",
+    landlordId: "l1",
+    author: "Chen W.",
+    avatar: "https://i.pravatar.cc/60?img=8",
+    rating: 4,
+    date: "2025-03-02",
+    text: "Great location, small kitchen but sufficient. Would recommend.",
+  },
+  {
+    id: "r3",
+    listingId: "3",
+    landlordId: "l4",
+    author: "Sofia R.",
+    avatar: "https://i.pravatar.cc/60?img=9",
+    rating: 5,
+    date: "2025-05-20",
+    text: "Beautiful apartment, security team is fantastic.",
+  },
+  {
+    id: "r4",
+    listingId: "2",
+    landlordId: "l2",
+    author: "Tomás L.",
+    avatar: "https://i.pravatar.cc/60?img=14",
+    rating: 4,
+    date: "2025-04-08",
+    text: "Friendly flatmates and a fair rent.",
+  },
+  {
+    id: "r5",
+    listingId: "5",
+    landlordId: "l1",
+    author: "Aisha K.",
+    avatar: "https://i.pravatar.cc/60?img=25",
+    rating: 5,
+    date: "2025-07-01",
+    text: "Perfect for roommates. Everything worked from day one.",
+  },
 ];
 
+// Demo-only conversations (dev seed). "demo-student" isn't a real auth uid,
+// so these won't appear in any real signed-in user's inbox — they exist so
+// the /messages UI has something to render before real conversations exist.
 export const conversations: Conversation[] = [
   {
     id: "c1",
     landlordId: "l1",
+    studentId: "demo-student",
+    participants: ["demo-student", "l1"],
     listingId: "1",
     lastPreview: "Sure, viewings are available this Saturday.",
     unread: 1,
     messages: [
-      { id: "m1", from: "me", text: "Hi! Is the studio still available for August?", time: "10:14" },
-      { id: "m2", from: "them", text: "Hello! Yes, still available. Would you like to book a viewing?", time: "10:22" },
-      { id: "m3", from: "me", text: "Yes please, this weekend if possible.", time: "10:24" },
-      { id: "m4", from: "them", text: "Sure, viewings are available this Saturday.", time: "10:31" },
+      {
+        id: "m1",
+        from: "demo-student",
+        text: "Hi! Is the studio still available for August?",
+        time: "10:14",
+      },
+      {
+        id: "m2",
+        from: "l1",
+        text: "Hello! Yes, still available. Would you like to book a viewing?",
+        time: "10:22",
+      },
+      {
+        id: "m3",
+        from: "demo-student",
+        text: "Yes please, this weekend if possible.",
+        time: "10:24",
+      },
+      { id: "m4", from: "l1", text: "Sure, viewings are available this Saturday.", time: "10:31" },
     ],
   },
   {
     id: "c2",
     landlordId: "l4",
+    studentId: "demo-student",
+    participants: ["demo-student", "l4"],
     listingId: "3",
     lastPreview: "Deposit is one month, refundable.",
     unread: 0,
     messages: [
-      { id: "m5", from: "me", text: "Hi, what's the deposit policy?", time: "Yesterday" },
-      { id: "m6", from: "them", text: "Deposit is one month, refundable.", time: "Yesterday" },
+      { id: "m5", from: "demo-student", text: "Hi, what's the deposit policy?", time: "Yesterday" },
+      { id: "m6", from: "l4", text: "Deposit is one month, refundable.", time: "Yesterday" },
     ],
   },
 ];
 
 export const tenants = [
-  { id: "t1", name: "Maya Patel", listing: "Sunlit Studio near Riverside Campus", moveIn: "2025-09-01", rent: 520, status: "Active" },
-  { id: "t2", name: "Chen Wu", listing: "Spacious 2BR for Roommates", moveIn: "2025-09-15", rent: 575, status: "Active" },
-  { id: "t3", name: "Aisha Khan", listing: "Spacious 2BR for Roommates", moveIn: "2025-09-15", rent: 575, status: "Active" },
+  {
+    id: "t1",
+    name: "Maya Patel",
+    listing: "Sunlit Studio near Riverside Campus",
+    moveIn: "2025-09-01",
+    rent: 520,
+    status: "Active",
+  },
+  {
+    id: "t2",
+    name: "Chen Wu",
+    listing: "Spacious 2BR for Roommates",
+    moveIn: "2025-09-15",
+    rent: 575,
+    status: "Active",
+  },
+  {
+    id: "t3",
+    name: "Aisha Khan",
+    listing: "Spacious 2BR for Roommates",
+    moveIn: "2025-09-15",
+    rent: 575,
+    status: "Active",
+  },
 ];
 
 export const paymentLog = [
-  { id: "p1", tenant: "Maya Patel", month: "Jun 2026", amount: 520, status: "Paid", date: "2026-06-01" },
-  { id: "p2", tenant: "Chen Wu", month: "Jun 2026", amount: 575, status: "Paid", date: "2026-06-02" },
-  { id: "p3", tenant: "Aisha Khan", month: "Jun 2026", amount: 575, status: "Paid", date: "2026-06-01" },
+  {
+    id: "p1",
+    tenant: "Maya Patel",
+    month: "Jun 2026",
+    amount: 520,
+    status: "Paid",
+    date: "2026-06-01",
+  },
+  {
+    id: "p2",
+    tenant: "Chen Wu",
+    month: "Jun 2026",
+    amount: 575,
+    status: "Paid",
+    date: "2026-06-02",
+  },
+  {
+    id: "p3",
+    tenant: "Aisha Khan",
+    month: "Jun 2026",
+    amount: 575,
+    status: "Paid",
+    date: "2026-06-01",
+  },
   { id: "p4", tenant: "Maya Patel", month: "Jul 2026", amount: 520, status: "Pending", date: "—" },
   { id: "p5", tenant: "Chen Wu", month: "Jul 2026", amount: 575, status: "Pending", date: "—" },
 ];
 
 export const reportedListings = [
-  { id: "rep1", listing: "Budget Shared Room, 10 min walk", reason: "Photos look outdated", reporter: "Student user #482", date: "2026-06-28" },
-  { id: "rep2", listing: "Basement Room – Rejected", reason: "Poor conditions", reporter: "Student user #109", date: "2026-06-15" },
+  {
+    id: "rep1",
+    listing: "Budget Shared Room, 10 min walk",
+    reason: "Photos look outdated",
+    reporter: "Student user #482",
+    date: "2026-06-28",
+  },
+  {
+    id: "rep2",
+    listing: "Basement Room – Rejected",
+    reason: "Poor conditions",
+    reporter: "Student user #109",
+    date: "2026-06-15",
+  },
 ];
 
 export const AMENITIES = [
-  "WiFi", "Furnished", "Laundry", "Utilities Included", "Shared Kitchen",
-  "AC", "Balcony", "Gym", "Parking", "Dishwasher", "Meals Optional", "Garden", "Concierge",
+  "WiFi",
+  "Furnished",
+  "Laundry",
+  "Utilities Included",
+  "Shared Kitchen",
+  "AC",
+  "Balcony",
+  "Gym",
+  "Parking",
+  "Dishwasher",
+  "Meals Optional",
+  "Garden",
+  "Concierge",
 ];
 
 export const CAMPUSES = ["Riverside University", "Northgate College", "Harbor Institute"];

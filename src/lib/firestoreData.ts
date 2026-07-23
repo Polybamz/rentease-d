@@ -37,6 +37,10 @@ let seedPromise: Promise<void> | null = null;
 
 export async function seedFirestoreIfEmpty(): Promise<void> {
   if (!isBrowser) return;
+  // Only auto-seed in local dev. In production this requires an open-write
+  // Firestore ruleset, which we don't ship (see firestore.rules) — seed a
+  // real project with `firebase emulators` or a trusted backend script instead.
+  if (!import.meta.env.DEV) return;
   if (seedPromise) return seedPromise;
 
   seedPromise = (async () => {
@@ -61,7 +65,7 @@ export async function seedFirestoreIfEmpty(): Promise<void> {
         messages.forEach((m, i) => {
           mBatch.set(doc(db, "conversations", c.id, "messages", m.id), {
             ...m,
-            order: i,
+            createdAtMs: m.createdAtMs ?? i,
           });
         });
         await mBatch.commit();
@@ -74,17 +78,21 @@ export async function seedFirestoreIfEmpty(): Promise<void> {
   return seedPromise;
 }
 
-// ---------- Generic subscribe hook ----------
+// ---------- Generic subscribe hooks ----------
 function useCollection<T>(
   path: string,
   fallback: T[],
   constraints: QueryConstraint[] = [],
   deps: unknown[] = [],
+  enabled = true,
 ): T[] {
   const [data, setData] = useState<T[]>(fallback);
 
   useEffect(() => {
-    if (!isBrowser) return;
+    if (!isBrowser || !enabled) {
+      setData(fallback);
+      return;
+    }
     const q = query(collection(db, path), ...constraints);
     const unsub = onSnapshot(
       q,
@@ -96,7 +104,29 @@ function useCollection<T>(
     );
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [...deps, enabled]);
+
+  return data;
+}
+
+/** Subscribes to a single document directly, instead of filtering a whole collection client-side. */
+function useDoc<T>(path: string, id: string | undefined, fallback: T | undefined): T | undefined {
+  const [data, setData] = useState<T | undefined>(fallback);
+
+  useEffect(() => {
+    if (!isBrowser || !id) {
+      setData(fallback);
+      return;
+    }
+    const unsub = onSnapshot(
+      doc(db, path, id),
+      (snap) =>
+        setData(snap.exists() ? ({ id: snap.id, ...(snap.data() as object) } as T) : undefined),
+      (err) => console.error(`onSnapshot ${path}/${id}`, err),
+    );
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path, id]);
 
   return data;
 }
@@ -107,13 +137,18 @@ export function useListings(): Listing[] {
 }
 
 export function useListing(id: string | undefined): Listing | undefined {
-  const all = useListings();
-  return all.find((l) => l.id === id);
+  const seed = seedListings.find((l) => l.id === id);
+  return useDoc<Listing>("listings", id, seed);
 }
 
 export function useListingsByLandlord(landlordId: string): Listing[] {
   const seed = seedListings.filter((l) => l.landlordId === landlordId);
-  return useCollection<Listing>("listings", seed, [where("landlordId", "==", landlordId)], [landlordId]);
+  return useCollection<Listing>(
+    "listings",
+    seed,
+    [where("landlordId", "==", landlordId)],
+    [landlordId],
+  );
 }
 
 export function useLandlords(): Landlord[] {
@@ -121,29 +156,40 @@ export function useLandlords(): Landlord[] {
 }
 
 export function useLandlord(id: string | undefined): Landlord | undefined {
-  return useLandlords().find((l) => l.id === id);
+  const seed = seedLandlords.find((l) => l.id === id);
+  return useDoc<Landlord>("landlords", id, seed);
 }
 
 export function useReviews(): Review[] {
   return useCollection<Review>("reviews", seedReviews);
 }
 
-export function useConversations(): Conversation[] {
-  // Read conversation docs (without messages) then merge messages via useMessages per active
-  const rows = useCollection<Omit<Conversation, "messages">>("conversations", seedConversations);
-  return rows.map((r) => ({
-    ...(r as Conversation),
-    messages: (r as any).messages ?? [],
-  }));
+/**
+ * Conversations the given uid actually participates in. Pass the signed-in
+ * user's uid — with no uid, returns nothing (rather than every conversation
+ * in the database, which the security rules would reject anyway).
+ */
+export function useConversations(uid: string | undefined): Conversation[] {
+  const rows = useCollection<Omit<Conversation, "messages">>(
+    "conversations",
+    [],
+    uid ? [where("participants", "array-contains", uid)] : [],
+    [uid],
+    !!uid,
+  );
+  return rows.map((r) => ({ ...(r as Conversation), messages: [] }));
 }
 
 export function useMessages(conversationId: string | undefined): Message[] {
   const [msgs, setMsgs] = useState<Message[]>([]);
   useEffect(() => {
-    if (!isBrowser || !conversationId) return;
+    if (!isBrowser || !conversationId) {
+      setMsgs([]);
+      return;
+    }
     const q = query(
       collection(db, "conversations", conversationId, "messages"),
-      orderBy("order", "asc"),
+      orderBy("createdAtMs", "asc"),
     );
     const unsub = onSnapshot(
       q,
@@ -156,24 +202,35 @@ export function useMessages(conversationId: string | undefined): Message[] {
 }
 
 export function useTenants() {
-  return useCollection<{ id: string; name: string; listing: string; moveIn: string; rent: number; status: string }>(
-    "tenants",
-    seedTenants,
-  );
+  return useCollection<{
+    id: string;
+    name: string;
+    listing: string;
+    moveIn: string;
+    rent: number;
+    status: string;
+  }>("tenants", seedTenants);
 }
 
 export function usePayments() {
-  return useCollection<{ id: string; tenant: string; month: string; amount: number; status: string; date: string }>(
-    "payments",
-    seedPayments,
-  );
+  return useCollection<{
+    id: string;
+    tenant: string;
+    month: string;
+    amount: number;
+    status: string;
+    date: string;
+  }>("payments", seedPayments);
 }
 
 export function useReports() {
-  return useCollection<{ id: string; listing: string; reason: string; reporter: string; date: string }>(
-    "reports",
-    seedReports,
-  );
+  return useCollection<{
+    id: string;
+    listing: string;
+    reason: string;
+    reporter: string;
+    date: string;
+  }>("reports", seedReports);
 }
 
 // ---------- Mutations ----------
@@ -185,17 +242,58 @@ export async function updateListingStatus(id: string, status: Listing["status"])
   await updateDoc(doc(db, "listings", id), { status });
 }
 
+export async function upsertLandlordProfile(l: Landlord): Promise<void> {
+  await setDoc(doc(db, "landlords", l.id), l, { merge: true });
+}
+
 export async function sendMessage(
   conversationId: string,
-  msg: Omit<Message, "id">,
-  order: number,
+  msg: { from: string; text: string },
 ): Promise<void> {
   await addDoc(collection(db, "conversations", conversationId, "messages"), {
     ...msg,
-    order,
     createdAt: serverTimestamp(),
+    // serverTimestamp() resolves to null in the local echo until the write is
+    // acknowledged, which would make ordering flap on send; a client clock
+    // value gives immediate, stable ordering.
+    createdAtMs: Date.now(),
   });
   await updateDoc(doc(db, "conversations", conversationId), {
     lastPreview: msg.text,
+    lastMessageAt: serverTimestamp(),
   });
+}
+
+/**
+ * Finds the existing conversation between this student and landlord about
+ * this listing, or creates one. Returns the conversation id.
+ */
+export async function findOrCreateConversation(params: {
+  studentId: string;
+  landlordId: string;
+  listingId: string;
+}): Promise<string> {
+  const { studentId, landlordId, listingId } = params;
+  const snap = await getDocs(
+    query(
+      collection(db, "conversations"),
+      where("participants", "array-contains", studentId),
+      where("listingId", "==", listingId),
+    ),
+  );
+  const existing = snap.docs.find((d) =>
+    (d.data().participants as string[] | undefined)?.includes(landlordId),
+  );
+  if (existing) return existing.id;
+
+  const ref = await addDoc(collection(db, "conversations"), {
+    participants: [studentId, landlordId],
+    studentId,
+    landlordId,
+    listingId,
+    lastPreview: "",
+    unread: 0,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
 }

@@ -1,13 +1,18 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { createFileRoute } from "@tanstack/react-router";
 import { Check, X, Flag, Users, Home, AlertCircle } from "lucide-react";
 import { useListings, useReports, updateListingStatus } from "@/lib/firestoreData";
 import { StatusBadge } from "@/components/rentease/Badges";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { toast } from "sonner";
-import { useAuth } from "@/lib/auth";
-import { useRole } from "@/lib/role";
+import { RequireRole } from "@/lib/RequireRole";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -15,26 +20,12 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminPage() {
-  const { user, loading: authLoading } = useAuth();
-  const { role, loading: roleLoading } = useRole();
-  const navigate = useNavigate();
+  return <RequireRole roles={["admin"]}>{() => <AdminDashboard />}</RequireRole>;
+}
 
-  useEffect(() => {
-    if (authLoading || roleLoading) return;
-    if (!user) navigate({ to: "/login" });
-    else if (role !== "admin") navigate({ to: "/" });
-  }, [user, role, authLoading, roleLoading, navigate]);
-
+function AdminDashboard() {
   const items = useListings();
   const reportedListings = useReports();
-
-  if (authLoading || roleLoading || !user || role !== "admin") {
-    return (
-      <div className="mx-auto max-w-md px-4 py-16 text-center text-muted-foreground">
-        Checking access…
-      </div>
-    );
-  }
 
   const decide = async (id: string, next: "Live" | "Rejected") => {
     try {
@@ -58,7 +49,9 @@ function AdminPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
-      <p className="text-sm text-muted-foreground">Approve listings and monitor platform activity.</p>
+      <p className="text-sm text-muted-foreground">
+        Approve listings and monitor platform activity.
+      </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
@@ -78,12 +71,20 @@ function AdminPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Listing</TableHead><TableHead>Price</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
+                <TableHead>Listing</TableHead>
+                <TableHead>Price</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {pending.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">No listings awaiting review.</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    No listings awaiting review.
+                  </TableCell>
+                </TableRow>
               )}
               {pending.map((l) => (
                 <TableRow key={l.id}>
@@ -95,11 +96,17 @@ function AdminPage() {
                   </TableCell>
                   <TableCell>${l.price}</TableCell>
                   <TableCell>{l.roomType}</TableCell>
-                  <TableCell><StatusBadge status={l.status} /></TableCell>
+                  <TableCell>
+                    <StatusBadge status={l.status} />
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="inline-flex gap-2">
-                      <Button size="sm" onClick={() => decide(l.id, "Live")}><Check className="mr-1 h-3 w-3" /> Approve</Button>
-                      <Button size="sm" variant="outline" onClick={() => decide(l.id, "Rejected")}><X className="mr-1 h-3 w-3" /> Reject</Button>
+                      <Button size="sm" onClick={() => decide(l.id, "Live")}>
+                        <Check className="mr-1 h-3 w-3" /> Approve
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => decide(l.id, "Rejected")}>
+                        <X className="mr-1 h-3 w-3" /> Reject
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -114,7 +121,12 @@ function AdminPage() {
         <div className="overflow-hidden rounded-2xl border bg-card">
           <Table>
             <TableHeader>
-              <TableRow><TableHead>Listing</TableHead><TableHead>Reason</TableHead><TableHead>Reporter</TableHead><TableHead>Date</TableHead></TableRow>
+              <TableRow>
+                <TableHead>Listing</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead>Reporter</TableHead>
+                <TableHead>Date</TableHead>
+              </TableRow>
             </TableHeader>
             <TableBody>
               {reportedListings.map((r) => (

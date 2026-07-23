@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider, type Auth } from "firebase/auth";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string,
@@ -32,12 +33,14 @@ export const firebaseConfigError: string | null = validateApiKey(firebaseConfig.
 let _app: FirebaseApp | null = null;
 let _db: Firestore | null = null;
 let _auth: Auth | null = null;
+let _storage: FirebaseStorage | null = null;
 
 if (!firebaseConfigError) {
   try {
     _app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     _db = getFirestore(_app);
     _auth = getAuth(_app);
+    _storage = getStorage(_app);
   } catch (err) {
     console.error("[firebase] Initialization failed:", err);
   }
@@ -51,16 +54,18 @@ function makeUnavailableProxy<T>(name: string): T {
     {
       get() {
         throw new Error(
-          `[firebase] ${name} is unavailable: ${firebaseConfigError ?? "Firebase failed to initialize."}`
+          `[firebase] ${name} is unavailable: ${firebaseConfigError ?? "Firebase failed to initialize."}`,
         );
       },
-    }
+    },
   ) as T;
 }
 
 export const firebaseApp: FirebaseApp = _app ?? makeUnavailableProxy<FirebaseApp>("firebaseApp");
 export const db: Firestore = _db ?? makeUnavailableProxy<Firestore>("db");
 export const auth: Auth = _auth ?? makeUnavailableProxy<Auth>("auth");
+export const storage: FirebaseStorage =
+  _storage ?? makeUnavailableProxy<FirebaseStorage>("storage");
 export const googleProvider = new GoogleAuthProvider();
 
 let analyticsInstance: Analytics | null = null;

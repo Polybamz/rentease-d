@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { z } from "zod";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { AMENITIES } from "@/lib/mockData";
 import { useListings } from "@/lib/firestoreData";
@@ -20,26 +21,48 @@ import {
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
+const searchSchema = z.object({
+  // Populated by the landing-page hero search so a query is shareable and
+  // survives a refresh instead of living only in local component state.
+  q: z.string().optional(),
+});
+
 export const Route = createFileRoute("/browse")({
   component: BrowsePage,
+  validateSearch: searchSchema,
   head: () => ({ meta: [{ title: "Browse listings — RentEase" }] }),
 });
 
-function useFilters() {
-  const [q, setQ] = useState("");
+function useFilters(initialQ: string) {
+  const [q, setQ] = useState(initialQ);
   const [price, setPrice] = useState<[number, number]>([100, 1500]);
   const [maxDist, setMaxDist] = useState(5);
   const [room, setRoom] = useState<string>("any");
   const [amenities, setAmenities] = useState<string[]>([]);
   const [occupants, setOccupants] = useState(1);
-  return { q, setQ, price, setPrice, maxDist, setMaxDist, room, setRoom, amenities, setAmenities, occupants, setOccupants };
+  return {
+    q,
+    setQ,
+    price,
+    setPrice,
+    maxDist,
+    setMaxDist,
+    room,
+    setRoom,
+    amenities,
+    setAmenities,
+    occupants,
+    setOccupants,
+  };
 }
 
 function Filters(f: ReturnType<typeof useFilters>) {
   return (
     <div className="space-y-6 p-1">
       <div>
-        <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">Price / month</Label>
+        <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">
+          Price / month
+        </Label>
         <Slider
           min={100}
           max={2000}
@@ -48,18 +71,31 @@ function Filters(f: ReturnType<typeof useFilters>) {
           onValueChange={(v) => f.setPrice(v as [number, number])}
         />
         <div className="mt-2 flex justify-between text-sm text-muted-foreground">
-          <span>${f.price[0]}</span><span>${f.price[1]}</span>
+          <span>${f.price[0]}</span>
+          <span>${f.price[1]}</span>
         </div>
       </div>
       <div>
-        <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">Distance to campus</Label>
-        <Slider min={0.2} max={5} step={0.1} value={[f.maxDist]} onValueChange={(v) => f.setMaxDist(v[0])} />
+        <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">
+          Distance to campus
+        </Label>
+        <Slider
+          min={0.2}
+          max={5}
+          step={0.1}
+          value={[f.maxDist]}
+          onValueChange={(v) => f.setMaxDist(v[0])}
+        />
         <div className="mt-2 text-sm text-muted-foreground">Within {f.maxDist.toFixed(1)} km</div>
       </div>
       <div>
-        <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">Room type</Label>
+        <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">
+          Room type
+        </Label>
         <Select value={f.room} onValueChange={f.setRoom}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="any">Any</SelectItem>
             <SelectItem value="Studio">Studio</SelectItem>
@@ -71,11 +107,21 @@ function Filters(f: ReturnType<typeof useFilters>) {
         </Select>
       </div>
       <div>
-        <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">Occupants</Label>
-        <Input type="number" min={1} max={6} value={f.occupants} onChange={(e) => f.setOccupants(Number(e.target.value))} />
+        <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">
+          Occupants
+        </Label>
+        <Input
+          type="number"
+          min={1}
+          max={6}
+          value={f.occupants}
+          onChange={(e) => f.setOccupants(Number(e.target.value))}
+        />
       </div>
       <div>
-        <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">Amenities</Label>
+        <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">
+          Amenities
+        </Label>
         <div className="grid grid-cols-2 gap-2">
           {AMENITIES.map((a) => (
             <label key={a} className="flex cursor-pointer items-center gap-2 text-sm">
@@ -95,7 +141,8 @@ function Filters(f: ReturnType<typeof useFilters>) {
 }
 
 function BrowsePage() {
-  const f = useFilters();
+  const { q } = Route.useSearch();
+  const f = useFilters(q ?? "");
   const [highlight, setHighlight] = useState<string | undefined>();
   const listings = useListings();
 
@@ -107,9 +154,13 @@ function BrowsePage() {
       .filter((l) => f.room === "any" || l.roomType === f.room)
       .filter((l) => l.occupants >= f.occupants || l.roomType === "Studio")
       .filter((l) => f.amenities.every((a) => l.amenities.includes(a)))
-      .filter((l) => !f.q || l.title.toLowerCase().includes(f.q.toLowerCase()) || l.address.toLowerCase().includes(f.q.toLowerCase()));
+      .filter(
+        (l) =>
+          !f.q ||
+          l.title.toLowerCase().includes(f.q.toLowerCase()) ||
+          l.address.toLowerCase().includes(f.q.toLowerCase()),
+      );
   }, [f, listings]);
-
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
@@ -131,8 +182,12 @@ function BrowsePage() {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-80 overflow-y-auto">
-            <SheetHeader><SheetTitle>Filters</SheetTitle></SheetHeader>
-            <div className="mt-4"><Filters {...f} /></div>
+            <SheetHeader>
+              <SheetTitle>Filters</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4">
+              <Filters {...f} />
+            </div>
           </SheetContent>
         </Sheet>
         <div className="text-sm text-muted-foreground">{results.length} results</div>
@@ -164,7 +219,12 @@ function BrowsePage() {
 
         <div className="hidden lg:block">
           <div className="sticky top-20 h-[calc(100vh-6rem)]">
-            <StaticMap listings={results} highlightId={highlight} onSelect={setHighlight} className="h-full" />
+            <StaticMap
+              listings={results}
+              highlightId={highlight}
+              onSelect={setHighlight}
+              className="h-full"
+            />
           </div>
         </div>
       </div>

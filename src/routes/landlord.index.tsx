@@ -1,8 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Upload, FileText, Receipt, Home } from "lucide-react";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { Plus, Upload, FileText, Receipt, Home, Loader2 } from "lucide-react";
 import { AMENITIES, type Listing } from "@/lib/mockData";
 import { useListingsByLandlord, useTenants, usePayments, createListing } from "@/lib/firestoreData";
+import { storage } from "@/lib/firebase";
+import { RequireRole } from "@/lib/RequireRole";
 
 import { StatusBadge } from "@/components/rentease/Badges";
 import { Button } from "@/components/ui/button";
@@ -11,9 +14,22 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/landlord/")({
@@ -22,11 +38,21 @@ export const Route = createFileRoute("/landlord/")({
 });
 
 function LandlordDashboard() {
-  const myLandlordId = "l1";
+  return (
+    <RequireRole roles={["landlord"]}>
+      {({ uid }) => <LandlordDashboardInner landlordId={uid} />}
+    </RequireRole>
+  );
+}
+
+function LandlordDashboardInner({ landlordId: myLandlordId }: { landlordId: string }) {
   const items = useListingsByLandlord(myLandlordId);
   const tenants = useTenants();
   const paymentLog = usePayments();
-  const [previewDoc, setPreviewDoc] = useState<null | { type: "agreement" | "receipt"; tenant: string }>(null);
+  const [previewDoc, setPreviewDoc] = useState<null | {
+    type: "agreement" | "receipt";
+    tenant: string;
+  }>(null);
 
   // Add listing form
   const [f, setF] = useState({
@@ -39,13 +65,33 @@ function LandlordDashboard() {
     description: "",
     photo: "",
   });
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const uploadPhoto = async (file: File) => {
+    setUploadingPhoto(true);
+    try {
+      const path = `listings/${myLandlordId}/${Date.now()}-${file.name}`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setF((prev) => ({ ...prev, photo: url }));
+    } catch (err) {
+      console.error(err);
+      toast.error("Photo upload failed");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const submitListing = async (e: React.FormEvent) => {
     e.preventDefault();
     const n: Listing = {
       id: crypto.randomUUID(),
       title: f.title || "Untitled listing",
-      photos: [f.photo || "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=70"],
+      photos: [
+        f.photo ||
+          "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=70",
+      ],
       price: Number(f.price) || 0,
       deposit: Number(f.deposit) || 0,
       distanceKm: 1.0,
@@ -65,7 +111,16 @@ function LandlordDashboard() {
     };
     try {
       await createListing(n);
-      setF({ title: "", price: "", deposit: "", roomType: "Studio", availableFrom: "", amenities: [], description: "", photo: "" });
+      setF({
+        title: "",
+        price: "",
+        deposit: "",
+        roomType: "Studio",
+        availableFrom: "",
+        amenities: [],
+        description: "",
+        photo: "",
+      });
       toast.success("Listing submitted", { description: "It's now Pending Review by our team." });
     } catch (err) {
       console.error(err);
@@ -73,13 +128,14 @@ function LandlordDashboard() {
     }
   };
 
-
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       <div className="mb-6 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Landlord Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Manage your properties, tenants, and payments.</p>
+          <p className="text-sm text-muted-foreground">
+            Manage your properties, tenants, and payments.
+          </p>
         </div>
       </div>
 
@@ -93,14 +149,19 @@ function LandlordDashboard() {
         <TabsContent value="listings" className="mt-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((l) => (
-              <div key={l.id} className="overflow-hidden rounded-2xl border bg-card shadow-[var(--shadow-card)]">
+              <div
+                key={l.id}
+                className="overflow-hidden rounded-2xl border bg-card shadow-[var(--shadow-card)]"
+              >
                 <img src={l.photos[0]} className="aspect-[4/3] w-full object-cover" alt={l.title} />
                 <div className="space-y-2 p-4">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="line-clamp-1 font-semibold">{l.title}</h3>
                     <StatusBadge status={l.status} />
                   </div>
-                  <div className="text-sm text-muted-foreground">${l.price}/mo · {l.roomType}</div>
+                  <div className="text-sm text-muted-foreground">
+                    ${l.price}/mo · {l.roomType}
+                  </div>
                 </div>
               </div>
             ))}
@@ -108,7 +169,10 @@ function LandlordDashboard() {
         </TabsContent>
 
         <TabsContent value="new" className="mt-6">
-          <form onSubmit={submitListing} className="grid gap-6 rounded-2xl border bg-card p-6 md:grid-cols-2">
+          <form
+            onSubmit={submitListing}
+            className="grid gap-6 rounded-2xl border bg-card p-6 md:grid-cols-2"
+          >
             <div className="md:col-span-2">
               <Label>Photo</Label>
               <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-sm text-muted-foreground hover:bg-muted">
@@ -116,42 +180,78 @@ function LandlordDashboard() {
                   type="file"
                   className="hidden"
                   accept="image/*"
+                  disabled={uploadingPhoto}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) setF({ ...f, photo: URL.createObjectURL(file) });
+                    if (file) uploadPhoto(file);
                   }}
                 />
-                {f.photo ? (
+                {uploadingPhoto ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Uploading…
+                  </>
+                ) : f.photo ? (
                   <img src={f.photo} className="h-40 rounded-lg object-cover" alt="preview" />
                 ) : (
-                  <><Upload className="h-4 w-4" /> Click to upload a photo</>
+                  <>
+                    <Upload className="h-4 w-4" /> Click to upload a photo
+                  </>
                 )}
               </label>
             </div>
             <div>
               <Label>Title</Label>
-              <Input className="mt-2" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="Sunny studio near campus" />
+              <Input
+                className="mt-2"
+                value={f.title}
+                onChange={(e) => setF({ ...f, title: e.target.value })}
+                placeholder="Sunny studio near campus"
+              />
             </div>
             <div>
               <Label>Room type</Label>
-              <Select value={f.roomType} onValueChange={(v) => setF({ ...f, roomType: v as Listing["roomType"] })}>
-                <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
+              <Select
+                value={f.roomType}
+                onValueChange={(v) => setF({ ...f, roomType: v as Listing["roomType"] })}
+              >
+                <SelectTrigger className="mt-2">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {["Studio", "Private Room", "Shared Room", "1BR", "2BR"].map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  {["Studio", "Private Room", "Shared Room", "1BR", "2BR"].map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
               <Label>Rent / month ($)</Label>
-              <Input type="number" className="mt-2" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} />
+              <Input
+                type="number"
+                className="mt-2"
+                value={f.price}
+                onChange={(e) => setF({ ...f, price: e.target.value })}
+              />
             </div>
             <div>
               <Label>Deposit ($)</Label>
-              <Input type="number" className="mt-2" value={f.deposit} onChange={(e) => setF({ ...f, deposit: e.target.value })} />
+              <Input
+                type="number"
+                className="mt-2"
+                value={f.deposit}
+                onChange={(e) => setF({ ...f, deposit: e.target.value })}
+              />
             </div>
             <div>
               <Label>Available from</Label>
-              <Input type="date" className="mt-2" value={f.availableFrom} onChange={(e) => setF({ ...f, availableFrom: e.target.value })} />
+              <Input
+                type="date"
+                className="mt-2"
+                value={f.availableFrom}
+                onChange={(e) => setF({ ...f, availableFrom: e.target.value })}
+              />
             </div>
             <div>
               <Label>Map pin (address)</Label>
@@ -164,7 +264,12 @@ function LandlordDashboard() {
                   <label key={a} className="flex items-center gap-2 text-sm">
                     <Checkbox
                       checked={f.amenities.includes(a)}
-                      onCheckedChange={(v) => setF({ ...f, amenities: v ? [...f.amenities, a] : f.amenities.filter((x) => x !== a) })}
+                      onCheckedChange={(v) =>
+                        setF({
+                          ...f,
+                          amenities: v ? [...f.amenities, a] : f.amenities.filter((x) => x !== a),
+                        })
+                      }
                     />
                     {a}
                   </label>
@@ -173,10 +278,17 @@ function LandlordDashboard() {
             </div>
             <div className="md:col-span-2">
               <Label>Description</Label>
-              <Textarea className="mt-2" rows={4} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
+              <Textarea
+                className="mt-2"
+                rows={4}
+                value={f.description}
+                onChange={(e) => setF({ ...f, description: e.target.value })}
+              />
             </div>
             <div className="md:col-span-2">
-              <Button type="submit"><Plus className="mr-2 h-4 w-4" /> Submit for review</Button>
+              <Button type="submit" disabled={uploadingPhoto}>
+                <Plus className="mr-2 h-4 w-4" /> Submit for review
+              </Button>
             </div>
           </form>
         </TabsContent>
@@ -187,7 +299,11 @@ function LandlordDashboard() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Tenant</TableHead><TableHead>Listing</TableHead><TableHead>Move-in</TableHead><TableHead>Rent</TableHead><TableHead>Actions</TableHead>
+                  <TableHead>Tenant</TableHead>
+                  <TableHead>Listing</TableHead>
+                  <TableHead>Move-in</TableHead>
+                  <TableHead>Rent</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -199,10 +315,18 @@ function LandlordDashboard() {
                     <TableCell>${t.rent}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => setPreviewDoc({ type: "agreement", tenant: t.name })}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPreviewDoc({ type: "agreement", tenant: t.name })}
+                        >
                           <FileText className="mr-1 h-3 w-3" /> Agreement
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => setPreviewDoc({ type: "receipt", tenant: t.name })}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPreviewDoc({ type: "receipt", tenant: t.name })}
+                        >
                           <Receipt className="mr-1 h-3 w-3" /> Receipt
                         </Button>
                       </div>
@@ -218,7 +342,11 @@ function LandlordDashboard() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Tenant</TableHead><TableHead>Month</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead>
+                  <TableHead>Tenant</TableHead>
+                  <TableHead>Month</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -228,7 +356,9 @@ function LandlordDashboard() {
                     <TableCell>{p.month}</TableCell>
                     <TableCell>${p.amount}</TableCell>
                     <TableCell>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${p.status === "Paid" ? "bg-success/15 text-success" : "bg-warning/20 text-warning-foreground"}`}>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${p.status === "Paid" ? "bg-success/15 text-success" : "bg-warning/20 text-warning-foreground"}`}
+                      >
                         {p.status}
                       </span>
                     </TableCell>
@@ -244,43 +374,76 @@ function LandlordDashboard() {
       <Dialog open={!!previewDoc} onOpenChange={(o) => !o && setPreviewDoc(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{previewDoc?.type === "agreement" ? "Rental Agreement" : "Payment Receipt"} Preview</DialogTitle>
+            <DialogTitle>
+              {previewDoc?.type === "agreement" ? "Rental Agreement" : "Payment Receipt"} Preview
+            </DialogTitle>
           </DialogHeader>
           <div className="rounded-lg border bg-[oklch(0.99_0.005_90)] p-8 font-serif text-sm shadow-inner">
             <div className="mb-6 flex items-center justify-between border-b pb-4">
               <div className="flex items-center gap-2">
-                <div className="grid h-8 w-8 place-items-center rounded bg-primary text-primary-foreground"><Home className="h-4 w-4" /></div>
+                <div className="grid h-8 w-8 place-items-center rounded bg-primary text-primary-foreground">
+                  <Home className="h-4 w-4" />
+                </div>
                 <span className="font-bold">RentEase</span>
               </div>
               <div className="text-right text-xs text-muted-foreground">
-                Document #{Math.floor(Math.random() * 90000 + 10000)}<br />Issued {new Date().toLocaleDateString()}
+                Document #{Math.floor(Math.random() * 90000 + 10000)}
+                <br />
+                Issued {new Date().toLocaleDateString()}
               </div>
             </div>
             {previewDoc?.type === "agreement" ? (
               <>
                 <h2 className="text-lg font-bold">Residential Tenancy Agreement</h2>
-                <p className="mt-3">This agreement is made between <b>Amara Okafor</b> (Landlord) and <b>{previewDoc.tenant}</b> (Tenant) for the property listed on RentEase.</p>
+                <p className="mt-3">
+                  This agreement is made between <b>Amara Okafor</b> (Landlord) and{" "}
+                  <b>{previewDoc.tenant}</b> (Tenant) for the property listed on RentEase.
+                </p>
                 <div className="my-4 grid grid-cols-2 gap-3">
-                  <div><b>Term:</b> 12 months</div>
-                  <div><b>Rent:</b> $520 / month</div>
-                  <div><b>Deposit:</b> $520</div>
-                  <div><b>Start date:</b> 2026-09-01</div>
+                  <div>
+                    <b>Term:</b> 12 months
+                  </div>
+                  <div>
+                    <b>Rent:</b> $520 / month
+                  </div>
+                  <div>
+                    <b>Deposit:</b> $520
+                  </div>
+                  <div>
+                    <b>Start date:</b> 2026-09-01
+                  </div>
                 </div>
-                <p>Both parties agree to the standard terms outlined in the RentEase master agreement…</p>
+                <p>
+                  Both parties agree to the standard terms outlined in the RentEase master
+                  agreement…
+                </p>
               </>
             ) : (
               <>
                 <h2 className="text-lg font-bold">Payment Receipt</h2>
-                <p className="mt-3">Received from <b>{previewDoc?.tenant}</b> the sum of <b>$520.00</b> as monthly rent payment.</p>
+                <p className="mt-3">
+                  Received from <b>{previewDoc?.tenant}</b> the sum of <b>$520.00</b> as monthly
+                  rent payment.
+                </p>
                 <div className="my-4 grid grid-cols-2 gap-3">
-                  <div><b>Period:</b> July 2026</div>
-                  <div><b>Method:</b> Bank Transfer</div>
-                  <div><b>Reference:</b> RE-{Math.floor(Math.random() * 900000)}</div>
-                  <div><b>Status:</b> Paid</div>
+                  <div>
+                    <b>Period:</b> July 2026
+                  </div>
+                  <div>
+                    <b>Method:</b> Bank Transfer
+                  </div>
+                  <div>
+                    <b>Reference:</b> RE-{Math.floor(Math.random() * 900000)}
+                  </div>
+                  <div>
+                    <b>Status:</b> Paid
+                  </div>
                 </div>
               </>
             )}
-            <div className="mt-8 border-t pt-4 text-xs text-muted-foreground">RentEase demo document — not a legal record.</div>
+            <div className="mt-8 border-t pt-4 text-xs text-muted-foreground">
+              RentEase demo document — not a legal record.
+            </div>
           </div>
         </DialogContent>
       </Dialog>

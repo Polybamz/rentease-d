@@ -2,7 +2,14 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, MapPin, Calendar, DollarSign, Check } from "lucide-react";
 import { listings } from "@/lib/mockData";
-import { useListing, useLandlord, useReviews } from "@/lib/firestoreData";
+import {
+  useListing,
+  useLandlord,
+  useReviews,
+  findOrCreateConversation,
+  sendMessage,
+} from "@/lib/firestoreData";
+import { useAuth } from "@/lib/auth";
 
 import { StarRating, VerifiedBadge } from "@/components/rentease/Badges";
 import { StaticMap } from "@/components/rentease/StaticMap";
@@ -25,9 +32,11 @@ function ListingDetail() {
   const { id } = Route.useParams();
   const listing = useListing(id);
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [selected, setSelected] = useState(0);
   const [msgOpen, setMsgOpen] = useState(false);
   const [msg, setMsg] = useState("Hi, is this still available?");
+  const [sending, setSending] = useState(false);
   const landlord = useLandlord(listing?.landlordId);
   const allReviews = useReviews();
 
@@ -36,23 +45,54 @@ function ListingDetail() {
 
   const listingReviews = allReviews.filter((r) => r.listingId === listing.id);
 
+  const openMessageDialog = () => {
+    if (!user) {
+      navigate({ to: "/login" });
+      return;
+    }
+    setMsgOpen(true);
+  };
 
-  const send = () => {
-    setMsgOpen(false);
-    toast.success("Message sent", { description: `We'll notify you when ${landlord.name} replies.` });
-    setTimeout(() => navigate({ to: "/messages" }), 400);
+  const send = async () => {
+    if (!user || !msg.trim() || sending) return;
+    setSending(true);
+    try {
+      const conversationId = await findOrCreateConversation({
+        studentId: user.uid,
+        landlordId: landlord.id,
+        listingId: listing.id,
+      });
+      await sendMessage(conversationId, { from: user.uid, text: msg });
+      setMsgOpen(false);
+      toast.success("Message sent", {
+        description: `We'll notify you when ${landlord.name} replies.`,
+      });
+      navigate({ to: "/messages", search: { conversation: conversationId } });
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not send message");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
-      <button onClick={() => history.back()} className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <button
+        onClick={() => history.back()}
+        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeft className="h-4 w-4" /> Back to results
       </button>
 
       {/* Gallery */}
       <div className="grid gap-2 md:grid-cols-4">
         <div className="md:col-span-3">
-          <img src={listing.photos[selected]} alt={listing.title} className="aspect-[16/10] w-full rounded-2xl object-cover" />
+          <img
+            src={listing.photos[selected]}
+            alt={listing.title}
+            className="aspect-[16/10] w-full rounded-2xl object-cover"
+          />
         </div>
         <div className="flex gap-2 md:flex-col">
           {listing.photos.map((p, i) => (
@@ -73,14 +113,17 @@ function ListingDetail() {
             <div>
               <h1 className="text-2xl font-semibold md:text-3xl">{listing.title}</h1>
               <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                <MapPin className="h-4 w-4" /> {listing.address} · {listing.distanceKm} km to {listing.campus}
+                <MapPin className="h-4 w-4" /> {listing.address} · {listing.distanceKm} km to{" "}
+                {listing.campus}
               </div>
             </div>
             <VerifiedBadge />
           </div>
 
           <div className="mt-4">
-            {listing.rating > 0 && <StarRating value={listing.rating} count={listing.reviewCount} />}
+            {listing.rating > 0 && (
+              <StarRating value={listing.rating} count={listing.reviewCount} />
+            )}
           </div>
 
           <p className="mt-6 text-muted-foreground">{listing.description}</p>
@@ -88,14 +131,19 @@ function ListingDetail() {
           <h2 className="mt-8 text-lg font-semibold">Amenities</h2>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {listing.amenities.map((a) => (
-              <div key={a} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm">
+              <div
+                key={a}
+                className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm"
+              >
                 <Check className="h-4 w-4 text-primary" /> {a}
               </div>
             ))}
           </div>
 
           <h2 className="mt-8 text-lg font-semibold">Location</h2>
-          <div className="mt-3 h-64"><StaticMap listings={[listing]} highlightId={listing.id} /></div>
+          <div className="mt-3 h-64">
+            <StaticMap listings={[listing]} highlightId={listing.id} />
+          </div>
 
           <h2 className="mt-8 text-lg font-semibold">Reviews</h2>
           {listingReviews.length === 0 ? (
@@ -106,7 +154,10 @@ function ListingDetail() {
                 <div key={r.id} className="rounded-xl border bg-card p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Avatar className="h-8 w-8"><AvatarImage src={r.avatar} /><AvatarFallback>{r.author[0]}</AvatarFallback></Avatar>
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={r.avatar} />
+                        <AvatarFallback>{r.author[0]}</AvatarFallback>
+                      </Avatar>
                       <div>
                         <div className="text-sm font-medium">{r.author}</div>
                         <div className="text-xs text-muted-foreground">{r.date}</div>
@@ -130,25 +181,39 @@ function ListingDetail() {
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="rounded-lg bg-muted p-3">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground"><DollarSign className="h-3 w-3" /> Deposit</div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <DollarSign className="h-3 w-3" /> Deposit
+                </div>
                 <div className="mt-1 font-medium">${listing.deposit}</div>
               </div>
               <div className="rounded-lg bg-muted p-3">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground"><Calendar className="h-3 w-3" /> Available</div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Calendar className="h-3 w-3" /> Available
+                </div>
                 <div className="mt-1 font-medium">{listing.availableFrom}</div>
               </div>
             </div>
 
-            <Button className="w-full" size="lg" onClick={() => setMsgOpen(true)}>Message Landlord</Button>
+            <Button className="w-full" size="lg" onClick={openMessageDialog}>
+              Message Landlord
+            </Button>
             <Button variant="outline" className="w-full" asChild>
-              <Link to="/landlord/$id" params={{ id: landlord.id }}>View landlord profile</Link>
+              <Link to="/landlord/$id" params={{ id: landlord.id }}>
+                View landlord profile
+              </Link>
             </Button>
 
             <div className="mt-4 border-t pt-4">
               <div className="flex items-center gap-3">
-                <Avatar className="h-11 w-11"><AvatarImage src={landlord.avatar} /><AvatarFallback>{landlord.name[0]}</AvatarFallback></Avatar>
+                <Avatar className="h-11 w-11">
+                  <AvatarImage src={landlord.avatar} />
+                  <AvatarFallback>{landlord.name[0]}</AvatarFallback>
+                </Avatar>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 font-medium">{landlord.name}{landlord.verified && <VerifiedBadge />}</div>
+                  <div className="flex items-center gap-2 font-medium">
+                    {landlord.name}
+                    {landlord.verified && <VerifiedBadge />}
+                  </div>
                   <StarRating value={landlord.rating} count={landlord.reviewCount} />
                 </div>
               </div>
@@ -159,9 +224,13 @@ function ListingDetail() {
 
       <Dialog open={msgOpen} onOpenChange={setMsgOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Message {landlord.name}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Message {landlord.name}</DialogTitle>
+          </DialogHeader>
           <Textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={5} />
-          <Button onClick={send}>Send message</Button>
+          <Button onClick={send} disabled={sending}>
+            {sending ? "Sending…" : "Send message"}
+          </Button>
         </DialogContent>
       </Dialog>
     </div>

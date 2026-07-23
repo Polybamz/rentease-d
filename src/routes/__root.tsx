@@ -16,7 +16,7 @@ import { firebaseConfigError } from "@/lib/firebase";
 
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
+import { reportError } from "../lib/error-reporting";
 
 function NotFoundComponent() {
   return (
@@ -44,7 +44,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    reportError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
   return (
@@ -91,8 +91,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "RentEase — Verified student housing near your campus" },
       { name: "twitter:description", content: "Find and manage verified off-campus student housing. Search listings, message landlords, and handle tenancies in one place." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/fa7201cc-7779-40de-8504-011deaa5c5c1/id-preview-754b025b--0a6570f6-a8bb-4e09-b230-eedc926cd33e.lovable.app-1783355892767.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/fa7201cc-7779-40de-8504-011deaa5c5c1/id-preview-754b025b--0a6570f6-a8bb-4e09-b230-eedc926cd33e.lovable.app-1783355892767.png" },
     ],
     links: [
       {
