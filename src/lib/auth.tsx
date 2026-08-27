@@ -1,8 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-
-
 import {
-
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -12,8 +9,11 @@ import {
 } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
 
-
-
+if (!googleProvider) {
+  // Firebase config missing (no VITE_FIREBASE_API_KEY) — consumers will render
+  // the config warning before any auth UI, so this is only a defence in depth.
+  throw new Error("Firebase is not configured. Add VITE_FIREBASE_API_KEY to .env");
+}
 
 type AuthCtx = {
   user: User | null;
@@ -55,7 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await createUserWithEmailAndPassword(auth, email, password);
     },
     signInGoogle: async () => {
-      await signInWithPopup(auth, googleProvider);
+      // Guarded above — googleProvider is non-null when Firebase is configured.
+      await signInWithPopup(auth, googleProvider!);
     },
     signOut: async () => {
       await fbSignOut(auth);

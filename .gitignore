@@ -16,6 +16,12 @@ dist-ssr
 .nitro
 *.local
 
+# Local SQLite database (created & seeded automatically on first run)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

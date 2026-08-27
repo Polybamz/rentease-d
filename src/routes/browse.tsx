@@ -3,7 +3,9 @@ import { useMemo, useState } from "react";
 import { z } from "zod";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { AMENITIES } from "@/lib/mockData";
+import { CAMPUSES } from "@/lib/mockData";
 import { useListings } from "@/lib/firestoreData";
+import { formatXafCompact } from "@/lib/currency";
 
 import { ListingCard } from "@/components/rentease/ListingCard";
 import { StaticMap } from "@/components/rentease/StaticMap";
@@ -21,6 +23,13 @@ import {
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
+// Monthly rent bounds for the price filter, in XAF.
+// PRICE_MIN starts at 0 so a lower-priced but valid listing an admin approved
+// isn't silently hidden by the default filter (e.g. a listing at 23,456 XAF).
+const PRICE_MIN = 0;
+const PRICE_MAX = 500_000;
+const PRICE_STEP = 5_000;
+
 const searchSchema = z.object({
   // Populated by the landing-page hero search so a query is shareable and
   // survives a refresh instead of living only in local component state.
@@ -35,11 +44,12 @@ export const Route = createFileRoute("/browse")({
 
 function useFilters(initialQ: string) {
   const [q, setQ] = useState(initialQ);
-  const [price, setPrice] = useState<[number, number]>([100, 1500]);
+  const [price, setPrice] = useState<[number, number]>([PRICE_MIN, PRICE_MAX]);
   const [maxDist, setMaxDist] = useState(5);
   const [room, setRoom] = useState<string>("any");
   const [amenities, setAmenities] = useState<string[]>([]);
   const [occupants, setOccupants] = useState(1);
+  const [campus, setCampus] = useState("any");
   return {
     q,
     setQ,
@@ -64,15 +74,15 @@ function Filters(f: ReturnType<typeof useFilters>) {
           Price / month
         </Label>
         <Slider
-          min={100}
-          max={2000}
-          step={20}
+          min={PRICE_MIN}
+          max={PRICE_MAX}
+          step={PRICE_STEP}
           value={f.price}
           onValueChange={(v) => f.setPrice(v as [number, number])}
         />
         <div className="mt-2 flex justify-between text-sm text-muted-foreground">
-          <span>${f.price[0]}</span>
-          <span>${f.price[1]}</span>
+          <span>{formatXafCompact(f.price[0])}</span>
+          <span>{formatXafCompact(f.price[1])}</span>
         </div>
       </div>
       <div>
@@ -163,7 +173,7 @@ function BrowsePage() {
   }, [f, listings]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6">
+    <div className="mx-auto  px-4 py-6">
       {/* Search row */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
         <div className="flex flex-1 items-center gap-2 rounded-xl border bg-card px-3 py-2">
@@ -200,7 +210,7 @@ function BrowsePage() {
           </div>
         </aside>
 
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        <div className="w-full grid gap-5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
           {results.map((l) => (
             <div
               key={l.id}
@@ -217,16 +227,7 @@ function BrowsePage() {
           )}
         </div>
 
-        <div className="hidden lg:block">
-          <div className="sticky top-20 h-[calc(100vh-6rem)]">
-            <StaticMap
-              listings={results}
-              highlightId={highlight}
-              onSelect={setHighlight}
-              className="h-full"
-            />
-          </div>
-        </div>
+        
       </div>
     </div>
   );

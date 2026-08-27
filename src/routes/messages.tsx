@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { z } from "zod";
 import { RequireRole } from "@/lib/RequireRole";
@@ -9,6 +9,7 @@ import {
   useListings,
   useMessages,
   sendMessage,
+  markConversationRead,
 } from "@/lib/firestoreData";
 import type { Conversation } from "@/lib/mockData";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -44,6 +45,19 @@ function MessagesInner({ uid }: { uid: string }) {
   const active = convos.find((c) => c.id === effectiveActiveId);
   const messages = useMessages(effectiveActiveId || undefined);
   const [draft, setDraft] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Keep the thread scrolled to the newest message when a new one arrives.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages, effectiveActiveId]);
+
+  // Clear the unread badge as soon as a conversation becomes selected.
+  useEffect(() => {
+    if (!effectiveActiveId) return;
+    markConversationRead(effectiveActiveId).catch((err) => console.error("mark read error", err));
+  }, [effectiveActiveId]);
 
   const send = async () => {
     if (!draft.trim() || !active) return;
@@ -57,12 +71,24 @@ function MessagesInner({ uid }: { uid: string }) {
   };
 
   // The other side of the conversation, from this user's point of view.
-  // There's no student profile directory yet, so a landlord viewing a
-  // conversation with a student only sees a generic label — landlords do
-  // have real profiles (see role.tsx), so students always see a name.
+  // Landlords have real profiles (see role.tsx), so students always see a
+  // name. There's no student profile directory yet, so a landlord viewing a
+  // student only gets a friendly generic label instead of a blank uid.
   const otherParty = (c: Conversation) => {
     const otherId = c.participants?.find((p) => p !== uid) ?? c.landlordId;
-    return landlordsList.find((l) => l.id === otherId);
+    const landlord = landlordsList.find((l) => l.id === otherId);
+    if (landlord) return { ...landlord, isStudent: false as const };
+    return {
+      id: otherId,
+      name: "Student",
+      avatar: "",
+      verified: false,
+      rating: 0,
+      reviewCount: 0,
+      joined: "",
+      bio: "",
+      isStudent: true as const,
+    };
   };
 
   return (
@@ -111,7 +137,7 @@ function MessagesInner({ uid }: { uid: string }) {
                   {listingsList.find((l) => l.id === active.listingId)?.title}
                 </div>
               </div>
-              <div className="flex-1 space-y-3 overflow-y-auto p-4">
+              <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
                 {messages.map((m) => {
                   // "me" only ever appears in dev seed/demo data.
                   const mine = m.from === uid || m.from === "me";

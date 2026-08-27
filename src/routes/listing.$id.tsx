@@ -1,13 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, MapPin, Calendar, DollarSign, Check } from "lucide-react";
-import { listings } from "@/lib/mockData";
+import { ArrowLeft, MapPin, Calendar, Banknote, Check, Flag } from "lucide-react";
+import { formatXaf } from "@/lib/currency";
 import {
   useListing,
   useLandlord,
   useReviews,
   findOrCreateConversation,
   sendMessage,
+  reportListing,
 } from "@/lib/firestoreData";
 import { useAuth } from "@/lib/auth";
 
@@ -18,14 +19,12 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/listing/$id")({
   component: ListingDetail,
   notFoundComponent: () => <div className="p-10 text-center">Listing not found.</div>,
-  head: ({ params }) => {
-    const l = listings.find((x) => x.id === params.id);
-    return { meta: [{ title: l ? `${l.title} — RentEase` : "Listing — RentEase" }] };
-  },
+  head: () => ({ meta: [{ title: "Listing — RentEase" }] }),
 });
 
 function ListingDetail() {
@@ -37,6 +36,10 @@ function ListingDetail() {
   const [msgOpen, setMsgOpen] = useState(false);
   const [msg, setMsg] = useState("Hi, is this still available?");
   const [sending, setSending] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportNote, setReportNote] = useState("");
+  const [reporting, setReporting] = useState(false);
   const landlord = useLandlord(listing?.landlordId);
   const allReviews = useReviews();
 
@@ -73,6 +76,53 @@ function ListingDetail() {
       toast.error("Could not send message");
     } finally {
       setSending(false);
+    }
+  };
+
+  // If the signed-in user is the landlord who owns this listing, hide the
+  // message button — messaging their own property would create a pointless
+  // self-conversation.
+  const isOwnListing = !!user && user.uid === listing.landlordId;
+
+  // Report-listing flow (student -> admin). Hidden for the listing's own
+  // landlord so they can't flag their own property.
+  const reportReasons = [
+    "Photos look outdated",
+    "Listing no longer available",
+    "Scam or fraud",
+    "Incorrect details",
+    "Other",
+  ];
+
+  const openReportDialog = () => {
+    if (!user) {
+      navigate({ to: "/login" });
+      return;
+    }
+    setReportReason(reportReasons[0]);
+    setReportNote("");
+    setReportOpen(true);
+  };
+
+  const submitReport = async () => {
+    if (!user || !reportReason || reporting) return;
+    setReporting(true);
+    try {
+      const reason = reportNote ? `${reportReason}: ${reportNote}` : reportReason;
+      await reportListing({
+        listingId: listing.id,
+        reason,
+        reporter: user.displayName ?? user.uid,
+      });
+      setReportOpen(false);
+      toast.success("Report submitted", {
+        description: "Thank you — the team will review it shortly.",
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not submit report");
+    } finally {
+      setReporting(false);
     }
   };
 
@@ -176,15 +226,15 @@ function ListingDetail() {
         <aside>
           <div className="sticky top-20 space-y-4 rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
             <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-semibold">${listing.price}</span>
+              <span className="text-3xl font-semibold">{formatXaf(listing.price)}</span>
               <span className="text-muted-foreground">/mo</span>
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="rounded-lg bg-muted p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <DollarSign className="h-3 w-3" /> Deposit
+                  <Banknote className="h-3 w-3" /> Deposit
                 </div>
-                <div className="mt-1 font-medium">${listing.deposit}</div>
+                <div className="mt-1 font-medium">{formatXaf(listing.deposit)}</div>
               </div>
               <div className="rounded-lg bg-muted p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -194,13 +244,20 @@ function ListingDetail() {
               </div>
             </div>
 
-            <Button className="w-full" size="lg" onClick={openMessageDialog}>
-              Message Landlord
-            </Button>
+            {!isOwnListing && (
+              <Button className="w-full" size="lg" onClick={openMessageDialog}>
+                Message Landlord
+              </Button>
+            )}
             <Button variant="outline" className="w-full" asChild>
               <Link to="/landlord/$id" params={{ id: landlord.id }}>
                 View landlord profile
               </Link>
+            </Button>
+
+            <Button variant="outline" className="w-full" onClick={openReportDialog}>
+              <Flag className="mr-2 h-4 w-4" />
+              Report listing
             </Button>
 
             <div className="mt-4 border-t pt-4">
@@ -231,6 +288,60 @@ function ListingDetail() {
           <Button onClick={send} disabled={sending}>
             {sending ? "Sending…" : "Send message"}
           </Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Report this listing</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              submitReport();
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="report-reason">Reason</Label>
+              <select
+                id="report-reason"
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              >
+                {reportReasons.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="report-note">Additional detail (optional)</Label>
+              <Textarea
+                id="report-note"
+                value={reportNote}
+                onChange={(e) => setReportNote(e.target.value)}
+                rows={3}
+                placeholder="Add any extra context…"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setReportOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={reporting}>
+                {reporting ? "Submitting…" : "Submit report"}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

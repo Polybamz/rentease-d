@@ -1,88 +1,176 @@
-import { useEffect, useState } from "react";
+/**
+ * Client-side data hooks.
+ *
+ * These hooks are thin wrappers around the server functions in `data.ts`.
+ * They preserve the same return types and signatures as the original Firestore
+ * hooks so that route components don't need to change.
+ */
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
-  collection,
-  doc,
-  getDocs,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  where,
-  writeBatch,
-  addDoc,
-  type QueryConstraint,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import {
-  listings as seedListings,
-  landlords as seedLandlords,
-  reviews as seedReviews,
-  conversations as seedConversations,
-  tenants as seedTenants,
-  paymentLog as seedPayments,
-  reportedListings as seedReports,
-  type Listing,
-  type Landlord,
-  type Review,
-  type Conversation,
-  type Message,
-} from "@/lib/mockData";
+  getListingsFn,
+  getListingByIdFn,
+  getListingByLandlordFn,
+  getLandlordsFn,
+  getLandlordByIdFn,
+  getReviewsFn,
+  getConversationsByUidFn,
+  getMessagesByConversationFn,
+  markConversationReadFn,
+  getTenantsFn,
+  getPaymentsFn,
+  getReportsFn,
+  reportListingFn,
+  deleteReportFn,
+  createListingFn,
+  updateListingStatusFn,
+  upsertLandlordProfileFn,
+  sendMessageFn,
+  findOrCreateConversationFn,
+  getUserRoleFn,
+  setUserRoleFn,
+} from "@/lib/data";
+import type { Listing, Landlord, Review, Conversation, Message } from "@/lib/mockData";
 
 const isBrowser = typeof window !== "undefined";
 
-// ---------- Seeding ----------
-let seedPromise: Promise<void> | null = null;
+// ---------------------------------------------------------------------------
+// Listings invalidation
+// ---------------------------------------------------------------------------
+// Lets the client re-fetch listings whenever an admin mutation happens, so an
+// Approve/Reject click takes effect on screen immediately instead of the panel
+// showing stale data until a manual refresh.
+let listingsVersion = 0;
+const listingsListeners = new Set<() => void>();
 
-export async function seedFirestoreIfEmpty(): Promise<void> {
-  if (!isBrowser) return;
-  // Only auto-seed in local dev. In production this requires an open-write
-  // Firestore ruleset, which we don't ship (see firestore.rules) — seed a
-  // real project with `firebase emulators` or a trusted backend script instead.
-  if (!import.meta.env.DEV) return;
-  if (seedPromise) return seedPromise;
-
-  seedPromise = (async () => {
-    try {
-      const listingsSnap = await getDocs(query(collection(db, "listings")));
-      if (!listingsSnap.empty) return;
-
-      const batch = writeBatch(db);
-      seedLandlords.forEach((l) => batch.set(doc(db, "landlords", l.id), l));
-      seedListings.forEach((l) => batch.set(doc(db, "listings", l.id), l));
-      seedReviews.forEach((r) => batch.set(doc(db, "reviews", r.id), r));
-      seedTenants.forEach((t) => batch.set(doc(db, "tenants", t.id), t));
-      seedPayments.forEach((p) => batch.set(doc(db, "payments", p.id), p));
-      seedReports.forEach((r) => batch.set(doc(db, "reports", r.id), r));
-      await batch.commit();
-
-      // Conversations with nested messages subcollection
-      for (const c of seedConversations) {
-        const { messages, ...rest } = c;
-        await setDoc(doc(db, "conversations", c.id), rest);
-        const mBatch = writeBatch(db);
-        messages.forEach((m, i) => {
-          mBatch.set(doc(db, "conversations", c.id, "messages", m.id), {
-            ...m,
-            createdAtMs: m.createdAtMs ?? i,
-          });
-        });
-        await mBatch.commit();
-      }
-    } catch (err) {
-      console.error("Firestore seed failed", err);
-    }
-  })();
-
-  return seedPromise;
+function subscribeListings(cb: () => void) {
+  listingsListeners.add(cb);
+  return () => {
+    listingsListeners.delete(cb);
+  };
 }
 
-// ---------- Generic subscribe hooks ----------
-function useCollection<T>(
-  path: string,
+function getListingsVersion(): number {
+  return listingsVersion;
+}
+
+// Bump locally and notify all open tabs that data changed. A mutation in one
+// tab (e.g. an admin approving a listing) must refresh a student's already-open
+// /browse tab too, otherwise the newly-approved listing stays hidden until they
+// manually reload.
+function bumpListingsVersion(source: "local" | "remote" = "local") {
+  listingsVersion += 1;
+  listingsListeners.forEach((l) => l());
+  // Only broadcast on the tab that actually performed the write — echo it back
+  // and the other tabs would re-broadcast in an endless loop.
+  if (source === "local" && listingsChannel) {
+    listingsChannel.postMessage("changed");
+  }
+}
+
+const listingsChannel =
+  typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("rentease:listings") : null;
+
+if (listingsChannel) {
+  listingsChannel.onmessage = () => bumpListingsVersion("remote");
+}
+
+function useListingsVersion(): number {
+  return useSyncExternalStore(subscribeListings, getListingsVersion);
+}
+
+// ---------------------------------------------------------------------------
+// Reports invalidation
+// ---------------------------------------------------------------------------
+// Mirrors the listings store: a report created/removed bumps this version so
+// every open admin tab (and the in-flight stats) refreshes via useSyncExternalStore
+// instead of waiting for a manual reload. Cross-tab sync uses a BroadcastChannel
+// so an admin dismissing a report in one tab sees it gone in another.
+let reportsVersion = 0;
+const reportsListeners = new Set<() => void>();
+
+function subscribeReports(cb: () => void) {
+  reportsListeners.add(cb);
+  return () => {
+    reportsListeners.delete(cb);
+  };
+}
+
+function getReportsVersion(): number {
+  return reportsVersion;
+}
+
+function bumpReportsVersion(source: "local" | "remote" = "local") {
+  reportsVersion += 1;
+  reportsListeners.forEach((l) => l());
+  if (source === "local" && reportsChannel) {
+    reportsChannel.postMessage("changed");
+  }
+}
+
+const reportsChannel =
+  typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("rentease:reports") : null;
+
+if (reportsChannel) {
+  reportsChannel.onmessage = () => bumpReportsVersion("remote");
+}
+
+function useReportsVersion(): number {
+  return useSyncExternalStore(subscribeReports, getReportsVersion);
+}
+
+// ---------------------------------------------------------------------------
+// Messages / conversations invalidation
+// ---------------------------------------------------------------------------
+// Lets the client re-fetch messages whenever a message is sent, so a sent
+// message appears immediately (and on the other party's open tab too) instead
+// of only after a manual refresh. Mirrors the listings store above: a local
+// mutation bumps this realm and broadcasts; other open tabs (the recipient)
+// receive the broadcast and re-fetch.
+let messagesVersion = 0;
+const messageListeners = new Set<() => void>();
+
+function subscribeMessages(cb: () => void) {
+  messageListeners.add(cb);
+  return () => {
+    messageListeners.delete(cb);
+  };
+}
+
+function getMessagesVersion(): number {
+  return messagesVersion;
+}
+
+function bumpMessagesVersion(source: "local" | "remote" = "local") {
+  messagesVersion += 1;
+  messageListeners.forEach((l) => l());
+  if (source === "local" && messagesChannel) {
+    messagesChannel.postMessage("changed");
+  }
+}
+
+const messagesChannel =
+  typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("rentease:messages") : null;
+
+if (messagesChannel) {
+  messagesChannel.onmessage = () => bumpMessagesVersion("remote");
+}
+
+function useMessagesVersion(): number {
+  return useSyncExternalStore(subscribeMessages, getMessagesVersion);
+}
+
+// ---------- Seeding (now a no-op; SQL is seeded server-side) ----------
+export async function seedFirestoreIfEmpty(): Promise<void> {
+  // Firestore seeding has been replaced by SQL seeding in data.ts.
+  // This function is kept for backwards compatibility but does nothing.
+  if (!isBrowser) return;
+  if (!import.meta.env.DEV) return;
+}
+
+// ---------- Generic fetch hook ----------
+function useAsyncList<T>(
+  fn: () => Promise<T[]>,
   fallback: T[],
-  constraints: QueryConstraint[] = [],
   deps: unknown[] = [],
   enabled = true,
 ): T[] {
@@ -93,207 +181,212 @@ function useCollection<T>(
       setData(fallback);
       return;
     }
-    const q = query(collection(db, path), ...constraints);
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as object) }) as T);
-        setData(rows);
-      },
-      (err) => console.error(`onSnapshot ${path}`, err),
-    );
-    return () => unsub();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fn()
+      .then(setData)
+      .catch((err) => console.error("data fetch error", err));
   }, [...deps, enabled]);
 
   return data;
 }
 
-/** Subscribes to a single document directly, instead of filtering a whole collection client-side. */
-function useDoc<T>(path: string, id: string | undefined, fallback: T | undefined): T | undefined {
-  const [data, setData] = useState<T | undefined>(fallback);
+// ---------- Hooks ----------
+
+export function useListings(): Listing[] {
+  // Always read from the SQLite DB via the server function — never fall back to
+  // the in-code seed array, so a listing a landlord creates (then an admin
+  // approves) is what actually shows for students.
+  return useAsyncList(getListingsFn, [], [useListingsVersion()]);
+}
+
+export function useListing(id: string | undefined): Listing | undefined {
+  const [data, setData] = useState<Listing | undefined>(undefined);
 
   useEffect(() => {
     if (!isBrowser || !id) {
-      setData(fallback);
+      setData(undefined);
       return;
     }
-    const unsub = onSnapshot(
-      doc(db, path, id),
-      (snap) =>
-        setData(snap.exists() ? ({ id: snap.id, ...(snap.data() as object) } as T) : undefined),
-      (err) => console.error(`onSnapshot ${path}/${id}`, err),
-    );
-    return () => unsub();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path, id]);
+    getListingByIdFn({ data: { id } })
+      .then(setData)
+      .catch((err) => console.error("listing fetch error", err));
+  }, [id]);
 
   return data;
 }
 
-// ---------- Hooks ----------
-export function useListings(): Listing[] {
-  return useCollection<Listing>("listings", seedListings);
-}
-
-export function useListing(id: string | undefined): Listing | undefined {
-  const seed = seedListings.find((l) => l.id === id);
-  return useDoc<Listing>("listings", id, seed);
-}
-
 export function useListingsByLandlord(landlordId: string): Listing[] {
-  const seed = seedListings.filter((l) => l.landlordId === landlordId);
-  return useCollection<Listing>(
-    "listings",
-    seed,
-    [where("landlordId", "==", landlordId)],
-    [landlordId],
+  return useAsyncList(
+    () => getListingByLandlordFn({ data: { landlordId } }),
+    [],
+    [landlordId, useListingsVersion()],
   );
 }
 
 export function useLandlords(): Landlord[] {
-  return useCollection<Landlord>("landlords", seedLandlords);
+  return useAsyncList(getLandlordsFn, []);
 }
 
 export function useLandlord(id: string | undefined): Landlord | undefined {
-  const seed = seedLandlords.find((l) => l.id === id);
-  return useDoc<Landlord>("landlords", id, seed);
+  const [data, setData] = useState<Landlord | undefined>(undefined);
+
+  useEffect(() => {
+    if (!isBrowser || !id) {
+      setData(undefined);
+      return;
+    }
+    getLandlordByIdFn({ data: { id } })
+      .then(setData)
+      .catch((err) => console.error("landlord fetch error", err));
+  }, [id]);
+
+  return data;
 }
 
 export function useReviews(): Review[] {
-  return useCollection<Review>("reviews", seedReviews);
+  return useAsyncList(getReviewsFn, []);
 }
 
-/**
- * Conversations the given uid actually participates in. Pass the signed-in
- * user's uid — with no uid, returns nothing (rather than every conversation
- * in the database, which the security rules would reject anyway).
- */
 export function useConversations(uid: string | undefined): Conversation[] {
-  const rows = useCollection<Omit<Conversation, "messages">>(
-    "conversations",
+  return useAsyncList(
+    uid
+      ? async () => {
+          const list = await getConversationsByUidFn({ data: { uid } });
+          // Conversations don't carry their messages (loaded separately via
+          // useMessages), so satisfy the Conversation shape with an empty list.
+          return list.map((c) => ({ ...c, messages: [] }));
+        }
+      : () => Promise.resolve([]),
     [],
-    uid ? [where("participants", "array-contains", uid)] : [],
-    [uid],
+    [uid, useMessagesVersion()],
     !!uid,
   );
-  return rows.map((r) => ({ ...(r as Conversation), messages: [] }));
 }
 
 export function useMessages(conversationId: string | undefined): Message[] {
   const [msgs, setMsgs] = useState<Message[]>([]);
+  const version = useMessagesVersion();
+
   useEffect(() => {
     if (!isBrowser || !conversationId) {
       setMsgs([]);
       return;
     }
-    const q = query(
-      collection(db, "conversations", conversationId, "messages"),
-      orderBy("createdAtMs", "asc"),
-    );
-    const unsub = onSnapshot(
-      q,
-      (snap) => setMsgs(snap.docs.map((d) => ({ id: d.id, ...(d.data() as object) }) as Message)),
-      (err) => console.error("messages snapshot", err),
-    );
-    return () => unsub();
-  }, [conversationId]);
+    getMessagesByConversationFn({ data: { conversationId } })
+      .then(setMsgs)
+      .catch((err) => console.error("messages fetch error", err));
+  }, [conversationId, version]);
+
   return msgs;
 }
 
 export function useTenants() {
-  return useCollection<{
-    id: string;
-    name: string;
-    listing: string;
-    moveIn: string;
-    rent: number;
-    status: string;
-  }>("tenants", seedTenants);
+  const [data, setData] = useState<any[]>([]);
+  useEffect(() => {
+    if (!isBrowser) return;
+    getTenantsFn()
+      .then(setData)
+      .catch((err) => console.error("tenants fetch error", err));
+  }, []);
+  return data;
 }
 
 export function usePayments() {
-  return useCollection<{
-    id: string;
-    tenant: string;
-    month: string;
-    amount: number;
-    status: string;
-    date: string;
-  }>("payments", seedPayments);
+  const [data, setData] = useState<any[]>([]);
+  useEffect(() => {
+    if (!isBrowser) return;
+    getPaymentsFn()
+      .then(setData)
+      .catch((err) => console.error("payments fetch error", err));
+  }, []);
+  return data;
 }
 
 export function useReports() {
-  return useCollection<{
-    id: string;
-    listing: string;
-    reason: string;
-    reporter: string;
-    date: string;
-  }>("reports", seedReports);
+  const [data, setData] = useState<any[]>([]);
+  useEffect(() => {
+    if (!isBrowser) return;
+    getReportsFn()
+      .then(setData)
+      .catch((err) => console.error("reports fetch error", err));
+  }, [useReportsVersion()]);
+  return data;
 }
 
 // ---------- Mutations ----------
+
+/**
+ * Submit a report for a listing (student -> admin). The report is stored with
+ * the listing id so the admin dashboard can link back to the reported listing.
+ */
+export async function reportListing(params: {
+  listingId: string;
+  reason: string;
+  reporter: string;
+}): Promise<void> {
+  await reportListingFn({ data: params });
+  bumpReportsVersion();
+}
+
+/** Dismiss a reported listing (admin action). Resolves the report immediately. */
+export async function deleteReport(reportId: string): Promise<void> {
+  await deleteReportFn({ data: { reportId } });
+  bumpReportsVersion();
+}
+
 export async function createListing(l: Listing): Promise<void> {
-  await setDoc(doc(db, "listings", l.id), l);
+  await createListingFn({ data: l });
+  // Invalidate so the new listing shows up immediately anywhere useListings()
+  // is mounted (e.g. the admin approval panel) without a manual refresh.
+  bumpListingsVersion();
 }
 
 export async function updateListingStatus(id: string, status: Listing["status"]): Promise<void> {
-  await updateDoc(doc(db, "listings", id), { status });
+  await updateListingStatusFn({ data: { id, status } });
+  // Invalidate so any mounted useListings() re-fetches and the admin panel
+  // reflects the new status without a manual page refresh.
+  bumpListingsVersion();
 }
 
 export async function upsertLandlordProfile(l: Landlord): Promise<void> {
-  await setDoc(doc(db, "landlords", l.id), l, { merge: true });
+  await upsertLandlordProfileFn({ data: l });
 }
 
 export async function sendMessage(
   conversationId: string,
   msg: { from: string; text: string },
 ): Promise<void> {
-  await addDoc(collection(db, "conversations", conversationId, "messages"), {
-    ...msg,
-    createdAt: serverTimestamp(),
-    // serverTimestamp() resolves to null in the local echo until the write is
-    // acknowledged, which would make ordering flap on send; a client clock
-    // value gives immediate, stable ordering.
-    createdAtMs: Date.now(),
-  });
-  await updateDoc(doc(db, "conversations", conversationId), {
-    lastPreview: msg.text,
-    lastMessageAt: serverTimestamp(),
-  });
+  await sendMessageFn({ data: { conversationId, from: msg.from, text: msg.text } });
+  // Invalidate so the sender's thread, the conversation list (last preview),
+  // and the recipient's open tab all re-fetch and show the new message.
+  bumpMessagesVersion();
 }
 
-/**
- * Finds the existing conversation between this student and landlord about
- * this listing, or creates one. Returns the conversation id.
- */
 export async function findOrCreateConversation(params: {
   studentId: string;
   landlordId: string;
   listingId: string;
 }): Promise<string> {
-  const { studentId, landlordId, listingId } = params;
-  const snap = await getDocs(
-    query(
-      collection(db, "conversations"),
-      where("participants", "array-contains", studentId),
-      where("listingId", "==", listingId),
-    ),
-  );
-  const existing = snap.docs.find((d) =>
-    (d.data().participants as string[] | undefined)?.includes(landlordId),
-  );
-  if (existing) return existing.id;
+  const id = await findOrCreateConversationFn({ data: params });
+  // If a new conversation was created, refresh inboxes so it appears in both
+  // parties' conversation lists right away.
+  bumpMessagesVersion();
+  return id;
+}
 
-  const ref = await addDoc(collection(db, "conversations"), {
-    participants: [studentId, landlordId],
-    studentId,
-    landlordId,
-    listingId,
-    lastPreview: "",
-    unread: 0,
-    createdAt: serverTimestamp(),
-  });
-  return ref.id;
+/** Clear the unread badge for a conversation the user just opened. */
+export async function markConversationRead(conversationId: string): Promise<void> {
+  await markConversationReadFn({ data: { conversationId } });
+  bumpMessagesVersion();
+}
+
+export async function getUserRole(uid: string): Promise<string | null> {
+  return getUserRoleFn({ data: { uid } });
+}
+
+export async function setUserRole(
+  uid: string,
+  role: "student" | "landlord" | "admin" | null,
+  email: string | null,
+): Promise<void> {
+  await setUserRoleFn({ data: { uid, role, email } });
 }

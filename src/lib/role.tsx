@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
-import { upsertLandlordProfile } from "@/lib/firestoreData";
+import { upsertLandlordProfile, getUserRole, setUserRole } from "@/lib/firestoreData";
 
 export type Role = "student" | "landlord" | "admin" | null;
 export type SelectableRole = "student" | "landlord";
@@ -36,10 +34,10 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       }
       setLoading(true);
       try {
-        const snap = await getDoc(doc(db, "users", user.uid));
-        const data = snap.exists() ? (snap.data() as { role?: Role }) : undefined;
-        const r = data?.role ?? null;
-        if (!cancelled) setRoleState(r ?? null);
+        const r = await getUserRole(user.uid);
+        const known: Role =
+          r === "student" || r === "landlord" || r === "admin" ? r : null;
+        if (!cancelled) setRoleState(known);
       } catch (err) {
         console.error("[role] load failed", err);
         if (!cancelled) setRoleState(null);
@@ -57,14 +55,10 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     if (!user) throw new Error("Sign in required to set a role.");
     // Never allow client-side promotion to admin.
     if ((r as string) === "admin") throw new Error("Admin role cannot be set from the client.");
-    await setDoc(
-      doc(db, "users", user.uid),
-      { role: r, email: user.email ?? null, updatedAt: Date.now() },
-      { merge: true },
-    );
+    await setUserRole(user.uid, r, user.email ?? null);
     if (r === "landlord") {
-      // Give every landlord a real profile doc keyed by their own uid, so
-      // listings/conversations/dashboards can all key off request.auth.uid
+      // Give every landlord a real profile keyed by their own uid, so
+      // listings/conversations/dashboards can all key off the auth uid
       // instead of a shared, hard-coded landlord id.
       await upsertLandlordProfile({
         id: user.uid,

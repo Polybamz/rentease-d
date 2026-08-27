@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { MapPin } from "lucide-react";
 import type { Listing } from "@/lib/mockData";
+import { formatXaf } from "@/lib/currency";
 import { StarRating, VerifiedBadge } from "./Badges";
 
 export function ListingCard({ listing }: { listing: Listing }) {
@@ -29,7 +30,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
         </div>
         <div className="flex items-center justify-between pt-1">
           <div className="text-lg font-semibold">
-            ${listing.price}
+            {formatXaf(listing.price)}
             <span className="text-sm font-normal text-muted-foreground">/mo</span>
           </div>
           {listing.rating > 0 && <StarRating value={listing.rating} count={listing.reviewCount} />}

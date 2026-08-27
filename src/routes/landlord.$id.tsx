@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { landlords } from "@/lib/mockData";
 import { useLandlord, useListingsByLandlord, useReviews } from "@/lib/firestoreData";
 
 import { StarRating, VerifiedBadge } from "@/components/rentease/Badges";
@@ -8,10 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export const Route = createFileRoute("/landlord/$id")({
   component: LandlordProfile,
-  head: ({ params }) => {
-    const l = landlords.find((x) => x.id === params.id);
-    return { meta: [{ title: l ? `${l.name} — RentEase` : "Landlord — RentEase" }] };
-  },
+  head: () => ({ meta: [{ title: "Landlord — RentEase" }] }),
 });
 
 function LandlordProfile() {

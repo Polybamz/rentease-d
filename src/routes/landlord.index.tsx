@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Plus, Upload, FileText, Receipt, Home, Loader2 } from "lucide-react";
 import { AMENITIES, type Listing } from "@/lib/mockData";
 import { useListingsByLandlord, useTenants, usePayments, createListing } from "@/lib/firestoreData";
-import { storage } from "@/lib/firebase";
+import { uploadImage, MAX_UPLOAD_BYTES } from "@/lib/cloudinary";
+import { CURRENCY_LABEL, formatXaf } from "@/lib/currency";
+
 import { RequireRole } from "@/lib/RequireRole";
 
 import { StatusBadge } from "@/components/rentease/Badges";
@@ -37,6 +38,9 @@ export const Route = createFileRoute("/landlord/")({
   head: () => ({ meta: [{ title: "Landlord dashboard — RentEase" }] }),
 });
 
+/** Placeholder amount used by the sample agreement/receipt documents. */
+const DEMO_RENT = 312_000;
+
 function LandlordDashboard() {
   return (
     <RequireRole roles={["landlord"]}>
@@ -68,16 +72,19 @@ function LandlordDashboardInner({ landlordId: myLandlordId }: { landlordId: stri
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const uploadPhoto = async (file: File) => {
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error("That image is larger than 10 MB");
+      return;
+    }
     setUploadingPhoto(true);
     try {
-      const path = `listings/${myLandlordId}/${Date.now()}-${file.name}`;
-      const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      const { url } = await uploadImage(file, `listings/${myLandlordId}`);
       setF((prev) => ({ ...prev, photo: url }));
     } catch (err) {
       console.error(err);
-      toast.error("Photo upload failed");
+      toast.error("Photo upload failed", {
+        description: err instanceof Error ? err.message : undefined,
+      });
     } finally {
       setUploadingPhoto(false);
     }
@@ -160,7 +167,7 @@ function LandlordDashboardInner({ landlordId: myLandlordId }: { landlordId: stri
                     <StatusBadge status={l.status} />
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    ${l.price}/mo · {l.roomType}
+                    {formatXaf(l.price)}/mo · {l.roomType}
                   </div>
                 </div>
               </div>
@@ -227,7 +234,7 @@ function LandlordDashboardInner({ landlordId: myLandlordId }: { landlordId: stri
               </Select>
             </div>
             <div>
-              <Label>Rent / month ($)</Label>
+              <Label>Rent / month ({CURRENCY_LABEL})</Label>
               <Input
                 type="number"
                 className="mt-2"
@@ -236,7 +243,7 @@ function LandlordDashboardInner({ landlordId: myLandlordId }: { landlordId: stri
               />
             </div>
             <div>
-              <Label>Deposit ($)</Label>
+              <Label>Deposit ({CURRENCY_LABEL})</Label>
               <Input
                 type="number"
                 className="mt-2"
@@ -312,7 +319,7 @@ function LandlordDashboardInner({ landlordId: myLandlordId }: { landlordId: stri
                     <TableCell className="font-medium">{t.name}</TableCell>
                     <TableCell className="text-muted-foreground">{t.listing}</TableCell>
                     <TableCell>{t.moveIn}</TableCell>
-                    <TableCell>${t.rent}</TableCell>
+                    <TableCell>{formatXaf(t.rent)}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button
@@ -354,7 +361,7 @@ function LandlordDashboardInner({ landlordId: myLandlordId }: { landlordId: stri
                   <TableRow key={p.id}>
                     <TableCell>{p.tenant}</TableCell>
                     <TableCell>{p.month}</TableCell>
-                    <TableCell>${p.amount}</TableCell>
+                    <TableCell>{formatXaf(p.amount)}</TableCell>
                     <TableCell>
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${p.status === "Paid" ? "bg-success/15 text-success" : "bg-warning/20 text-warning-foreground"}`}
@@ -404,10 +411,10 @@ function LandlordDashboardInner({ landlordId: myLandlordId }: { landlordId: stri
                     <b>Term:</b> 12 months
                   </div>
                   <div>
-                    <b>Rent:</b> $520 / month
+                    <b>Rent:</b> {formatXaf(DEMO_RENT)} / month
                   </div>
                   <div>
-                    <b>Deposit:</b> $520
+                    <b>Deposit:</b> {formatXaf(DEMO_RENT)}
                   </div>
                   <div>
                     <b>Start date:</b> 2026-09-01
@@ -422,8 +429,8 @@ function LandlordDashboardInner({ landlordId: myLandlordId }: { landlordId: stri
               <>
                 <h2 className="text-lg font-bold">Payment Receipt</h2>
                 <p className="mt-3">
-                  Received from <b>{previewDoc?.tenant}</b> the sum of <b>$520.00</b> as monthly
-                  rent payment.
+                  Received from <b>{previewDoc?.tenant}</b> the sum of <b>{formatXaf(DEMO_RENT)}</b>{" "}
+                  as monthly rent payment.
                 </p>
                 <div className="my-4 grid grid-cols-2 gap-3">
                   <div>

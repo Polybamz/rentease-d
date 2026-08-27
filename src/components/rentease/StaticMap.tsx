@@ -1,4 +1,5 @@
 import type { Listing } from "@/lib/mockData";
+import { formatXafCompact } from "@/lib/currency";
 import { MapPin } from "lucide-react";
 
 export function StaticMap({
@@ -47,7 +48,8 @@ export function StaticMap({
                 active ? "bg-foreground text-background" : "bg-card text-foreground"
               }`}
             >
-              <MapPin className="h-3 w-3" />${l.price}
+              <MapPin className="h-3 w-3" />
+              {formatXafCompact(l.price)}
             </div>
           </button>
         );

@@ -10,9 +10,11 @@ import {
 import { useEffect, type ReactNode } from "react";
 import { RoleProvider } from "@/lib/role";
 import { AuthProvider } from "@/lib/auth";
+import { AdminAuthProvider } from "@/lib/adminAuth";
+import { firebaseConfigError } from "@/lib/firebase";
 import { Nav } from "@/components/rentease/Nav";
 import { Toaster } from "@/components/ui/sonner";
-import { firebaseConfigError } from "@/lib/firebase";
+
 
 
 import appCss from "../styles.css?url";
@@ -125,14 +127,7 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
-  useEffect(() => {
-    import("@/lib/firebase").then(({ getFirebaseAnalytics }) => {
-      getFirebaseAnalytics().catch(() => {});
-    });
-    import("@/lib/firestoreData").then(({ seedFirestoreIfEmpty }) => {
-      seedFirestoreIfEmpty().catch(() => {});
-    });
-  }, []);
+    
 
 
 
@@ -142,6 +137,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <AdminAuthProvider>
       <AuthProvider>
         <RoleProvider>
           <div className="flex min-h-screen flex-col">
@@ -153,6 +149,7 @@ function RootComponent() {
           <Toaster />
         </RoleProvider>
       </AuthProvider>
+      </AdminAuthProvider>
     </QueryClientProvider>
   );
 }
@@ -161,8 +158,12 @@ function FirebaseConfigWarning({ message }: { message: string }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-lg rounded-2xl border border-destructive/30 bg-card p-6 shadow-sm">
-        <h1 className="text-lg font-semibold text-foreground">Firebase is not configured</h1>
+        <h1 className="text-lg font-semibold text-foreground">Firebase Auth is not configured</h1>
         <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Listing data is served from a local SQLite database. Firebase Authentication
+          is required for sign-in, messaging landlords, and role assignment.
+        </p>
         <ol className="mt-4 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
           <li>Open <span className="font-mono">.env</span> at the project root.</li>
           <li>

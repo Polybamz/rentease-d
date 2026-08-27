@@ -4,14 +4,15 @@ import { Search, ShieldCheck, MessageCircle, Home, MapPin, Star } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ListingCard } from "@/components/rentease/ListingCard";
-import { listings } from "@/lib/mockData";
+import { useListings } from "@/lib/firestoreData";
 
 export const Route = createFileRoute("/")({
   component: Landing,
 });
 
 function Landing() {
-  const featured = listings.filter((l) => l.status === "Live").slice(0, 3);
+  const all = useListings();
+  const featured = all.filter((l) => l.status === "Live").slice(0, 3);
   const [q, setQ] = useState("");
   return (
     <div>
@@ -20,9 +21,7 @@ function Landing() {
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_20%,oklch(0.93_0.04_195),transparent_60%),radial-gradient(circle_at_80%_0%,oklch(0.95_0.03_90),transparent_50%)]" />
         <div className="mx-auto max-w-7xl px-4 py-20 md:py-28">
           <div className="max-w-3xl">
-            <span className="inline-flex items-center gap-2 rounded-full border bg-card/70 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
-              <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Every landlord manually verified
-            </span>
+           
             <h1 className="mt-5 text-4xl font-semibold tracking-tight md:text-6xl">
               Find <span className="text-primary">verified student housing</span> near your campus.
             </h1>

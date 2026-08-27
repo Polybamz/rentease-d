@@ -3,6 +3,7 @@ import { Home, MessageSquare, LayoutDashboard, Shield, LogOut, Menu } from "luci
 import { useState } from "react";
 import { useRole } from "@/lib/role";
 import { useAuth } from "@/lib/auth";
+import { useAdminAuth } from "@/lib/adminAuth";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,23 +18,23 @@ import { toast } from "sonner";
 export function Nav() {
   const { role, setRole } = useRole();
   const { user, signOut } = useAuth();
+  const { isAdmin, signOut: adminSignOut } = useAdminAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
   const links =
-    role === "student"
-      ? [
+    role === "student" ? [
           { to: "/browse", label: "Browse", icon: Home },
           { to: "/messages", label: "Messages", icon: MessageSquare },
-        ]
-      : role === "landlord"
-        ? [
+        ] : role === "landlord" ? [
             { to: "/landlord", label: "Dashboard", icon: LayoutDashboard },
             { to: "/messages", label: "Messages", icon: MessageSquare },
-          ]
-        : role === "admin"
-          ? [{ to: "/admin", label: "Admin", icon: Shield }]
-          : [];
+          ] : role === "admin" ? [{ to: "/admin", label: "Admin", icon: Shield }] : [];
+
+  const allLinks = [
+    ...links,
+    { to: "/admin", label: "Admin", icon: Shield },
+  ];
 
   const switchTo = async (r: "student" | "landlord") => {
     try {
@@ -55,7 +56,7 @@ export function Nav() {
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">
-          {links.map((l) => (
+          {allLinks.map((l) => (
             <Link
               key={l.to}
               to={l.to}
@@ -101,6 +102,19 @@ export function Nav() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          ) : isAdmin ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">Admin</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Admin session</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { adminSignOut(); navigate({ to: "/" }); }}>
+                  <LogOut className="mr-2 h-4 w-4" /> Sign out of admin
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <Button size="sm" onClick={() => navigate({ to: "/login" })}>Sign in</Button>
           )}
@@ -112,7 +126,7 @@ export function Nav() {
       {open && (
         <div className="border-t md:hidden">
           <div className="mx-auto flex max-w-7xl flex-col p-2">
-            {links.map((l) => (
+            {allLinks.map((l) => (
               <Link
                 key={l.to}
                 to={l.to}
